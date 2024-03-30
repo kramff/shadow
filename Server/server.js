@@ -1,4 +1,4 @@
-console.log("Starting Plants game server");
+console.log("Starting Shadow game server");
 
 const WebSocket = require("ws");
 const wss = new WebSocket.Server({port: 8066});
@@ -207,7 +207,7 @@ Room.prototype.RemoveSelf = function () {
 }
 
 process.on('SIGINT', function() {
-	console.log("Stopping Plants game server");
+	console.log("Stopping Shadow game server");
 	process.exit();
 });
 

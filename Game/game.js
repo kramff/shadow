@@ -245,6 +245,9 @@ let compareGameStates = (gs1, gs2) => {
 			if (object.rightPressed !== matchingObject.rightPressed) {comparisons.push(`player.rightPressed diff ${object.rightPressed} !== ${matchingObject.rightPressed}`);}
 			if (object.downPressed !== matchingObject.downPressed) {comparisons.push(`player.downPressed diff ${object.downPressed} !== ${matchingObject.downPressed}`);}
 			if (object.leftPressed !== matchingObject.leftPressed) {comparisons.push(`player.leftPressed diff ${object.leftPressed} !== ${matchingObject.leftPressed}`);}
+			if (object.rotation !== matchingObject.rotation) {comparisons.push(`player.rotation diff ${object.rotation} !== ${matchingObject.rotation}`);}
+			if (object.xMousePosition !== matchingObject.xMousePosition) {comparisons.push(`player.xMousePosition diff ${object.xMousePosition} !== ${matchingObject.xMousePosition}`);}
+			if (object.yMousePosition !== matchingObject.yMousePosition) {comparisons.push(`player.yMousePosition diff ${object.yMousePosition} !== ${matchingObject.yMousePosition}`);}
 			if (object.grabPressed !== matchingObject.grabPressed) {comparisons.push(`player.grabPressed diff ${object.grabPressed} !== ${matchingObject.grabPressed}`);}
 			if (object.usePressed !== matchingObject.usePressed) {comparisons.push(`player.usePressed diff ${object.usePressed} !== ${matchingObject.usePressed}`);}
 			if (object.anchorPressed !== matchingObject.anchorPressed) {comparisons.push(`player.anchorPressed diff ${object.anchorPressed} !== ${matchingObject.anchorPressed}`);}
@@ -348,6 +351,8 @@ let createPlayer = (gs, name, id, team) => {
 		rotation: 0,
 		xTarget: 0,
 		yTarget: 0,
+		xMousePosition: 0,
+		yMousePosition: 0,
 		health: 10,
 		maxHealth: 10,
 		itemCooldown: 0,
@@ -698,6 +703,10 @@ let oDown = false;
 let pDown = false;
 let spaceDown = false;
 
+let xMouseScreen = 0;
+let yMouseScreen = 0;
+let mouseDown = false;
+
 let backgroundOverGame;
 let roomListElement;
 let teamBox1;
@@ -913,6 +922,9 @@ let init = () => {
 
 	addEventListener("keydown", keyDownFunction);
 	addEventListener("keyup", keyUpFunction);
+	addEventListener("mousedown", mouseDownFunction);
+	addEventListener("mouseup", mouseUpFunction);
+	addEventListener("mousemove", mouseMoveFunction);
 	addEventListener("resize", resizeFunction);
 }
 window.addEventListener('load', init);
@@ -2091,7 +2103,6 @@ let keyDownFunction = (event) => {
 	}
 	inputChanged = true;
 }
-
 let keyUpFunction = (event) => {
 	if (event.keyCode === 87) {
 		wDown = false;
@@ -2119,6 +2130,26 @@ let keyUpFunction = (event) => {
 	}
 	inputChanged = true;
 }
+let mouseDownFunction = (event) => {
+	if (!mouseDown) {
+		inputChanged = true;
+	}
+	mouseDown = true;
+}
+let mouseUpFunction = (event) => {
+	if (mouseDown) {
+		inputChanged = true;
+	}
+	mouseDown = false;
+}
+let mouseMoveFunction = (event) => {
+	if (event.clientX !== xMouseScreen || event.clientY !== yMouseScreen) {
+		inputChanged = true;
+	}
+	xMouseScreen = 0;
+	yMouseScreen = 0;
+}
+
 let resizeFunction = (event) => {
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	camera.aspect = window.innerWidth / window.innerHeight;
