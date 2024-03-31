@@ -22,9 +22,6 @@ let xCamera = 0;
 let yCamera = 0;
 let zCamera = 10;
 
-let thirdPersonTest = false;
-let firstPersonTest = false;
-
 // Specific render stuff
 let cubeGeometry;
 let playerMaterial;
@@ -248,11 +245,12 @@ let compareGameStates = (gs1, gs2) => {
 			if (object.rotation !== matchingObject.rotation) {comparisons.push(`player.rotation diff ${object.rotation} !== ${matchingObject.rotation}`);}
 			if (object.xMousePosition !== matchingObject.xMousePosition) {comparisons.push(`player.xMousePosition diff ${object.xMousePosition} !== ${matchingObject.xMousePosition}`);}
 			if (object.yMousePosition !== matchingObject.yMousePosition) {comparisons.push(`player.yMousePosition diff ${object.yMousePosition} !== ${matchingObject.yMousePosition}`);}
-			if (object.grabPressed !== matchingObject.grabPressed) {comparisons.push(`player.grabPressed diff ${object.grabPressed} !== ${matchingObject.grabPressed}`);}
-			if (object.usePressed !== matchingObject.usePressed) {comparisons.push(`player.usePressed diff ${object.usePressed} !== ${matchingObject.usePressed}`);}
-			if (object.anchorPressed !== matchingObject.anchorPressed) {comparisons.push(`player.anchorPressed diff ${object.anchorPressed} !== ${matchingObject.anchorPressed}`);}
-			if (object.releasedGrab !== matchingObject.releasedGrab) {comparisons.push(`player.releasedGrab diff ${object.releasedGrab} !== ${matchingObject.releasedGrab}`);}
-			if (object.releasedUse !== matchingObject.releasedUse) {comparisons.push(`player.releasedUse diff ${object.releasedUse} !== ${matchingObject.releasedUse}`);}
+			if (object.interactPressed !== matchingObject.interactPressed) {comparisons.push(`player.interactPressed diff ${object.interactPressed} !== ${matchingObject.interactPressed}`);}
+			if (object.reloadPressed !== matchingObject.reloadPressed) {comparisons.push(`player.reloadPressed diff ${object.reloadPressed} !== ${matchingObject.reloadPressed}`);}
+			if (object.flashlightPressed !== matchingObject.flashlightPressed) {comparisons.push(`player.flashlightPressed diff ${object.flashlightPressed} !== ${matchingObject.flashlightPressed}`);}
+			if (object.runPressed !== matchingObject.runPressed) {comparisons.push(`player.runPressed diff ${object.runPressed} !== ${matchingObject.runPressed}`);}
+			if (object.firePressed !== matchingObject.firePressed) {comparisons.push(`player.firePressed diff ${object.firePressed} !== ${matchingObject.firePressed}`);}
+			if (object.readyPressed !== matchingObject.readyPressed) {comparisons.push(`player.readyPressed diff ${object.readyPressed} !== ${matchingObject.readyPressed}`);}
 			if (object.xPosition !== matchingObject.xPosition) {comparisons.push(`player.xPosition diff ${object.xPosition} !== ${matchingObject.xPosition}`);}
 			if (object.xSpeed !== matchingObject.xSpeed) {comparisons.push(`player.xSpeed diff ${object.xSpeed} !== ${matchingObject.xSpeed}`);}
 			if (object.yPosition !== matchingObject.yPosition) {comparisons.push(`player.yPosition diff ${object.yPosition} !== ${matchingObject.yPosition}`);}
@@ -344,31 +342,47 @@ let plantMeshList = [];
 let createPlayer = (gs, name, id, team) => {
 	let newPlayer = {
 		type: "player",
+		// Position and movement
 		xPosition: 0,
 		yPosition: 0,
 		xSpeed: 0,
 		ySpeed: 0,
 		rotation: 0,
+		// Appliance targeting
 		xTarget: 0,
 		yTarget: 0,
-		xMousePosition: 0,
-		yMousePosition: 0,
+		// Status
 		health: 10,
 		maxHealth: 10,
+		// Item
 		itemCooldown: 0,
 		holdingItem: false,
 		heldItem: undefined,
+		// Controls
 		upPressed: false,
 		rightPressed: false,
 		downPressed: false,
 		leftPressed: false,
-		grabPressed: false,
-		usePressed: false,
-		anchorPressed: false,
-		releasedGrab: true,
-		releasedUse: true,
+		interactPressed: false,
+		reloadPressed: false,
+		flashlightPressed: false,
+		runPressed: false,
+		firePressed: false,
+		readyPressed: false,
+		// Mouse controls
+		xMousePosition: 0,
+		yMousePosition: 0,
+		// Released actions
+		interactReleased: false,
+		reloatReleased: false,
+		flashlightReleased: false,
+		runReleased: false,
+		fireReleased: false,
+		readyReleased: false,
+		// Graphics
 		connectedMesh: undefined,
 		connectedOverlayObjects: {},
+		// Game coordination
 		id: id,
 		name: name,
 		team: team,
@@ -695,17 +709,21 @@ let removePlant = (gs, plantObject) => {
 	gs.plantList.splice(gs.plantList.indexOf(plantObject), 1);
 }
 
+// Keys
 let wDown = false;
 let aDown = false;
 let sDown = false;
 let dDown = false;
-let oDown = false;
-let pDown = false;
-let spaceDown = false;
+let eDown = false;
+let rDown = false;
+let fDown = false;
+let shiftDown = false;
 
+// Mouse
 let xMouseScreen = 0;
 let yMouseScreen = 0;
-let mouseDown = false;
+let leftMouseDown = false;
+let rightMouseDown = false;
 
 let backgroundOverGame;
 let roomListElement;
@@ -777,14 +795,14 @@ let init = () => {
 	setupNetworkConnection();
 
 	nicknameInput = document.getElementById("nickname");
-	let savedNickname = localStorage.getItem("plants_game__nickname");
+	let savedNickname = localStorage.getItem("shadow_game__nickname");
 	if (!!savedNickname) {
 		nickname = savedNickname;
 		nicknameInput.value = nickname;
 	}
 	nicknameInput.oninput = (e) => {
 		nickname = nicknameInput.value;
-		localStorage.setItem("plants_game__nickname", nickname);
+		localStorage.setItem("shadow_game__nickname", nickname);
 	}
 
 	makeRoomButton = document.getElementById("make_room");
@@ -1099,17 +1117,27 @@ let applyInputToPlayer = (playerObject, playerInput) => {
 		playerObject.rightPressed !== playerInput.rightPressed ||
 		playerObject.downPressed !== playerInput.downPressed ||
 		playerObject.leftPressed !== playerInput.leftPressed ||
-		playerObject.grabPressed !== playerInput.grabPressed ||
-		playerObject.usePressed !== playerInput.usePressed ||
-		playerObject.anchorPressed !== playerInput.anchorPressed
+		playerObject.interactPressed !== playerInput.interactPressed ||
+		playerObject.reloadPressed !== playerInput.reloadPressed ||
+		playerObject.flashlightPressed !== playerInput.flashlightPressed ||
+		playerObject.runPressed !== playerInput.runPressed ||
+		playerObject.firePressed !== playerInput.firePressed ||
+		playerObject.readyPressed !== playerInput.readyPressed ||
+		playerObject.xMousePosition !== playerInput.xMousePosition ||
+		playerObject.yMousePosition !== playerInput.yMousePosition
 	) {
 		playerObject.upPressed = playerInput.upPressed;
 		playerObject.rightPressed = playerInput.rightPressed;
 		playerObject.downPressed = playerInput.downPressed;
 		playerObject.leftPressed = playerInput.leftPressed;
-		playerObject.grabPressed = playerInput.grabPressed;
-		playerObject.usePressed = playerInput.usePressed;
-		playerObject.anchorPressed = playerInput.anchorPressed;
+		playerObject.interactPressed = playerInput.interactPressed;
+		playerObject.reloadPressed = playerInput.reloadPressed;
+		playerObject.flashlightPressed = playerInput.flashlightPressed;
+		playerObject.runPressed = playerInput.runPressed;
+		playerObject.firePressed = playerInput.firePressed;
+		playerObject.readyPressed = playerInput.readyPressed;
+		playerObject.xMousePosition = playerInput.xMousePosition;
+		playerObject.yMousePosition = playerInput.yMousePosition;
 		return true;
 	}
 	return false;
@@ -1235,10 +1263,15 @@ let gameLoop = () => {
 					rightPressed: dDown,
 					downPressed: sDown,
 					leftPressed: aDown,
-					grabPressed: pDown,
-					usePressed: oDown,
-					anchorPressed: spaceDown,
-					// Put input delay here?
+					interactPressed: eDown,
+					reloadPressed: rDown,
+					flashlightPressed: fDown,
+					runPressed: shiftDown,
+					firePressed: leftMouseDown,
+					readyPressed: rightMouseDown,
+					xMousePosition: xMouseScreen - Math.round(window.innerWidth / 2),
+					yMousePosition: yMouseScreen - Math.round(window.innerHeight / 2),
+					// Input delay - this input is applied slightly later than when it's pressed
 					frameCount: currentFrameCount + inputDelay,
 				};
 				sendData("playerInput", inputData);
@@ -1442,20 +1475,12 @@ let renderFrame = (gs) => {
 	});
 	let localPlayer = getLocalPlayer(gs);
 	let localPlayerMesh = localPlayer.connectedMesh;
-	if (thirdPersonTest || firstPersonTest) {
-		if (thirdPersonTest) {
-			camera.position.set(localPlayerMesh.position.x, localPlayerMesh.position.y, localPlayerMesh.position.z + 10);
-			localPlayerMesh.visible = true;
-			camera.rotation.set(0, 0, 0);
-		}
-		else if (firstPersonTest) {
-			camera.position.set(localPlayerMesh.position.x, localPlayerMesh.position.y, localPlayerMesh.position.z);
-			localPlayerMesh.visible = false;
-			camera.rotation.copy(localPlayerMesh.rotation);
-		}
-	}
-	else {
-		// Normal overhead view
+	// Third person overhead camera
+	camera.position.set(localPlayerMesh.position.x, localPlayerMesh.position.y, localPlayerMesh.position.z + 10);
+	localPlayerMesh.visible = true;
+	camera.rotation.set(0, 0, 0);
+	if (false) {
+		// Old overhead view
 		localPlayerMesh.visible = true;
 		camera.rotation.set(0, 0, 0);
 		let xMin = gs.playerList.reduce((x, object) => Math.min(object.xPosition, x), Infinity);
@@ -1583,10 +1608,10 @@ let gameLogic = (gs) => {
 			xSpeedChange += 0.02;
 		}
 		// Defeated players are very slow
-		if (playerObject.defeated) {
-			xSpeedChange *= 0.1;
-			ySpeedChange *= 0.1;
-		}
+		//if (playerObject.defeated) {
+			//xSpeedChange *= 0.1;
+			//ySpeedChange *= 0.1;
+		//}
 		// Diagonal movement
 		if (xSpeedChange !== 0 && ySpeedChange !== 0) {
 			xSpeedChange /= Math.SQRT2;
@@ -1594,7 +1619,14 @@ let gameLogic = (gs) => {
 		}
 		let anyDirectionPressed = (xSpeedChange !== 0 || ySpeedChange !== 0);
 		let rotationChange = 0;
-		let targetRotation = Math.atan2(ySpeedChange, xSpeedChange);
+		let targetRotation;
+		if (playerObject.readyPressed) {
+			// Player is trying to ready a weapon - point toward mouse instead
+			targetRotation = Math.atan2(playerObject.yMousePosition, playerObject.xMousePosition);
+		}
+		else {
+			targetRotation = Math.atan2(ySpeedChange, xSpeedChange);
+		}
 		let oppositeRotation = false;
 		if (anyDirectionPressed) {
 			if (playerObject.rotation !== targetRotation) {
@@ -1616,9 +1648,9 @@ let gameLogic = (gs) => {
 		let previousRotation = playerObject.rotation;
 		if (rotationChange !== 0) {
 			// Defeated players turn slower
-			if (playerObject.defeated) {
-				rotationChange *= 0.5;
-			}
+			//if (playerObject.defeated) {
+				//rotationChange *= 0.5;
+			//}
 			// Apply rotation
 			playerObject.rotation += rotationChange;
 			// Don't overshoot the targetRotation
@@ -1645,14 +1677,21 @@ let gameLogic = (gs) => {
 		// If turning, slow down movement
 		let rotationDifference = Math.abs(previousRotation - playerObject.rotation);
 		if (rotationDifference > 0.01) {
-			xSpeedChange *= 0.25;
-			ySpeedChange *= 0.25;
+			xSpeedChange *= 0.5;
+			ySpeedChange *= 0.5;
 		}
 		// Don't move while holding space
-		if (!playerObject.anchorPressed) {
-			playerObject.xSpeed += xSpeedChange;
-			playerObject.ySpeed += ySpeedChange;
+		//if (!playerObject.anchorPressed) {
+			//playerObject.xSpeed += xSpeedChange;
+			//playerObject.ySpeed += ySpeedChange;
+		//}
+		// Slow down if trying to ready a weapon
+		if (playerObject.readyPressed) {
+			xSpeedChange *= 0.5;
+			xSpeedChange *= 0.5;
 		}
+		playerObject.xSpeed += xSpeedChange;
+		playerObject.ySpeed += ySpeedChange;
 		// Check for appliances in the way
 		let xPotential = playerObject.xPosition + playerObject.xSpeed;
 		let yPotential = playerObject.yPosition + playerObject.ySpeed;
@@ -1715,12 +1754,12 @@ let gameLogic = (gs) => {
 		});
 		playerObject.xPosition += playerObject.xSpeed;
 		playerObject.yPosition += playerObject.ySpeed;
-		playerObject.xSpeed *= 0.8;
-		playerObject.ySpeed *= 0.8;
+		playerObject.xSpeed *= 0.75;
+		playerObject.ySpeed *= 0.75;
 		// Apply more friction if stopping
-		if (!anyDirectionPressed || playerObject.anchorPressed) {
-			playerObject.xSpeed *= 0.9;
-			playerObject.ySpeed *= 0.9;
+		if (!anyDirectionPressed) {
+			playerObject.xSpeed *= 0.8;
+			playerObject.ySpeed *= 0.8;
 		}
 		playerObject.xTarget = Math.round(playerObject.xPosition + Math.cos(playerObject.rotation));
 		playerObject.yTarget = Math.round(playerObject.yPosition + Math.sin(playerObject.rotation));
@@ -1730,8 +1769,8 @@ let gameLogic = (gs) => {
 		}
 		// World Interaction
 
-		if (playerObject.grabPressed) {
-			if (playerObject.releasedGrab) {
+		if (playerObject.interactPressed) {
+			if (playerObject.interactReleased) {
 				// Grab input: try to grab or put down an item
 				// Grab from appliances
 				gs.applianceList.forEach((applianceObject) => {
@@ -1772,16 +1811,16 @@ let gameLogic = (gs) => {
 					}
 				});
 			}
-			playerObject.releasedGrab = false;
+			playerObject.interactReleased = false;
 		}
 		else {
-			playerObject.releasedGrab = true;
+			playerObject.interactReleased = true;
 		}
-		if (playerObject.usePressed) {
+		if (playerObject.firePressed) {
 			// Interact button: can activate held item
 			if (playerObject.holdingItem && playerObject.heldItem.hasAbility) {
 				// Use ability
-				if (playerObject.releasedUse) {
+				if (playerObject.fireReleased) {
 					// Defeated players cannot fire projectiles
 					// Player must not have cooldown remaining
 					if (!playerObject.defeated && playerObject.itemCooldown <= 0) {
@@ -1826,10 +1865,10 @@ let gameLogic = (gs) => {
 					}
 				});
 			}
-			playerObject.releasedUse = false;
+			playerObject.fireReleased = false;
 		}
 		else {
-			playerObject.releasedUse = true;
+			playerObject.fireReleased = true;
 		}
 	});
 	gs.enemyList.forEach(enemyObject => {
@@ -2131,16 +2170,36 @@ let keyUpFunction = (event) => {
 	inputChanged = true;
 }
 let mouseDownFunction = (event) => {
-	if (!mouseDown) {
-		inputChanged = true;
+	if (event.button === 0) {
+		if (!leftMouseDown) {
+			inputChanged = true;
+		}
+		leftMouseDown = true;
 	}
-	mouseDown = true;
+	else if (event.button === 2) {
+		if (!rightMouseDown) {
+			inputChanged = true;
+		}
+		rightMouseDown = true;
+	}
 }
 let mouseUpFunction = (event) => {
-	if (mouseDown) {
+	if (event.button === 0) {
+		if (leftMouseDown) {
+			inputChanged = true;
+		}
+		leftMouseDown = false;
+	}
+	else if (event.button === 2) {
+		if (rightMouseDown) {
+			inputChanged = true;
+		}
+		rightMouseDown = false;
+	}
+	/*if (mouseDown) {
 		inputChanged = true;
 	}
-	mouseDown = false;
+	mouseDown = false;*/
 }
 let mouseMoveFunction = (event) => {
 	if (event.clientX !== xMouseScreen || event.clientY !== yMouseScreen) {
