@@ -943,6 +943,7 @@ let init = () => {
 	addEventListener("mousedown", mouseDownFunction);
 	addEventListener("mouseup", mouseUpFunction);
 	addEventListener("mousemove", mouseMoveFunction);
+	addEventListener("contextmenu", contextMenuFunction);
 	addEventListener("resize", resizeFunction);
 }
 window.addEventListener('load', init);
@@ -972,7 +973,7 @@ let initializeGameState = (gs) => {
 	//safe1.assignedTeam = 1;
 	//let safe2 = createAppliance(gs, "safe", 7, 0);
 	//safe2.assignedTeam = 2;
-	let newEnemy = createEnemy(gs, "enemy1", 2, 15);
+	//let newEnemy = createEnemy(gs, "enemy1", 2, 15);
 
 	let newPlant1 = createPlant(gs, "plant1", -4, 5);
 	newPlant1.genome.makesSword = true;
@@ -1622,21 +1623,22 @@ let gameLogic = (gs) => {
 		let targetRotation;
 		if (playerObject.readyPressed) {
 			// Player is trying to ready a weapon - point toward mouse instead
-			targetRotation = Math.atan2(playerObject.yMousePosition, playerObject.xMousePosition);
+			targetRotation = -Math.atan2(playerObject.yMousePosition, playerObject.xMousePosition);
 		}
 		else {
+			// Player is just moving around without trying to ready a weapon
 			targetRotation = Math.atan2(ySpeedChange, xSpeedChange);
 		}
 		let oppositeRotation = false;
-		if (anyDirectionPressed) {
+		if (anyDirectionPressed || playerObject.readyPressed) {
 			if (playerObject.rotation !== targetRotation) {
 				let targetRotationDifference = Math.abs(playerObject.rotation - targetRotation);
 				// Apply spin to player's rotation toward targetRotation
 				if (playerObject.rotation > targetRotation) {
-					rotationChange -= 0.23;
+					rotationChange -= 0.17;
 				}
 				else {
-					rotationChange += 0.23;
+					rotationChange += 0.17;
 				}
 				// If the target rotation difference is greater than pi, spin the opposite way
 				if (targetRotationDifference > Math.PI) {
@@ -1668,18 +1670,24 @@ let gameLogic = (gs) => {
 			if (playerObject.rotation > Math.PI) {
 				playerObject.rotation -= Math.PI * 2;
 				previousRotation -= Math.PI * 2;
+				if (playerObject.rotation > targetRotation) {
+					playerObject.rotation = targetRotation;
+				}
 			}
 			if (playerObject.rotation < -Math.PI) {
 				playerObject.rotation += Math.PI * 2;
 				previousRotation += Math.PI * 2;
+				if (playerObject.rotation < targetRotation) {
+					playerObject.rotation = targetRotation;
+				}
 			}
 		}
 		// If turning, slow down movement
-		let rotationDifference = Math.abs(previousRotation - playerObject.rotation);
+		/*let rotationDifference = Math.abs(previousRotation - playerObject.rotation);
 		if (rotationDifference > 0.01) {
 			xSpeedChange *= 0.5;
 			ySpeedChange *= 0.5;
-		}
+		}*/
 		// Don't move while holding space
 		//if (!playerObject.anchorPressed) {
 			//playerObject.xSpeed += xSpeedChange;
@@ -1688,7 +1696,7 @@ let gameLogic = (gs) => {
 		// Slow down if trying to ready a weapon
 		if (playerObject.readyPressed) {
 			xSpeedChange *= 0.5;
-			xSpeedChange *= 0.5;
+			ySpeedChange *= 0.5;
 		}
 		playerObject.xSpeed += xSpeedChange;
 		playerObject.ySpeed += ySpeedChange;
@@ -1768,48 +1776,11 @@ let gameLogic = (gs) => {
 			playerObject.itemCooldown -= 1;
 		}
 		// World Interaction
-
+		let doInteraction = false;
+		let doFire = false;
 		if (playerObject.interactPressed) {
 			if (playerObject.interactReleased) {
-				// Grab input: try to grab or put down an item
-				// Grab from appliances
-				gs.applianceList.forEach((applianceObject) => {
-					if (playerObject.xTarget === applianceObject.xPosition && playerObject.yTarget === applianceObject.yPosition) {
-						// Supply appliances - copy item when picking up, delete item when putting down, never remove item from supply
-						// Can only put item down onto same type of supply
-						if (applianceObject.subType === "supply") {
-							if (playerObject.holdingItem && applianceObject.holdingItem && playerObject.heldItem.subType === applianceObject.heldItem.subType) {
-								// Delete player's held item
-								transferItem(gs, playerObject, undefined, playerObject.heldItem);
-							}
-							else if (!playerObject.holdingItem && applianceObject.holdingItem) {
-								// Pick up copy of item
-								let newItem = createItem(gs, applianceObject.heldItem.subType);
-								transferItem(gs, undefined, playerObject, newItem);
-							}
-						}
-						else {
-							if (playerObject.holdingItem && !applianceObject.holdingItem) {
-								// Put down object
-								transferItem(gs, playerObject, applianceObject, playerObject.heldItem);
-							}
-							else if (!playerObject.holdingItem && applianceObject.holdingItem) {
-								// Pick up object
-								transferItem(gs, applianceObject, playerObject, applianceObject.heldItem);
-							}
-						}
-					}
-				});
-				// Grab from plants and interact with specific items
-				gs.plantList.forEach(plantObject => {
-					if (playerObject.xTarget === plantObject.xPosition && playerObject.yTarget === plantObject.yPosition) {
-						// Can only take from plant, not put arbitrary items back down
-						if (!playerObject.holdingItem && plantObject.holdingItem) {
-							// Pick up object
-							transferItem(gs, plantObject, playerObject, plantObject.heldItem);
-						}
-					}
-				});
+				doInteraction = true;
 			}
 			playerObject.interactReleased = false;
 		}
@@ -1817,31 +1788,85 @@ let gameLogic = (gs) => {
 			playerObject.interactReleased = true;
 		}
 		if (playerObject.firePressed) {
-			// Interact button: can activate held item
-			if (playerObject.holdingItem && playerObject.heldItem.hasAbility) {
-				// Use ability
-				if (playerObject.fireReleased) {
-					// Defeated players cannot fire projectiles
-					// Player must not have cooldown remaining
-					if (!playerObject.defeated && playerObject.itemCooldown <= 0) {
-						let abilityType = playerObject.heldItem.subType;
-						let projectileType;
-						if (abilityType === "gun") {
-							projectileType = "bullet";
+			if (playerObject.fireReleased) {
+				if (playerObject.readyPressed) {
+					doFire = true;
+				}
+				else {
+					doInteraction = true;
+				}
+			}
+			playerObject.fireReleased = false;
+		}
+		else {
+			playerObject.fireReleased = true;
+		}
+		if (doInteraction) {
+			// Either: interact button pressed, or fire button pressed without ready button pressed
+			// Grab input: try to grab or put down an item
+			// Grab from appliances
+			gs.applianceList.forEach((applianceObject) => {
+				if (playerObject.xTarget === applianceObject.xPosition && playerObject.yTarget === applianceObject.yPosition) {
+					// Supply appliances - copy item when picking up, delete item when putting down, never remove item from supply
+					// Can only put item down onto same type of supply
+					if (applianceObject.subType === "supply") {
+						if (playerObject.holdingItem && applianceObject.holdingItem && playerObject.heldItem.subType === applianceObject.heldItem.subType) {
+							// Delete player's held item
+							transferItem(gs, playerObject, undefined, playerObject.heldItem);
 						}
-						else if (abilityType === "sword") {
-							projectileType = "swordSwing";
+						else if (!playerObject.holdingItem && applianceObject.holdingItem) {
+							// Pick up copy of item
+							let newItem = createItem(gs, applianceObject.heldItem.subType);
+							transferItem(gs, undefined, playerObject, newItem);
 						}
-						else if (abilityType === "ball") {
-							projectileType = "thrownBall";
-						}
-						else if (abilityType === "fireBomb") {
-							projectileType = "fireBombToss";
-						}
-						let projectileObject = createProjectile(gs, projectileType, playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.1);
-						projectileObject.sourcePlayer = playerObject;
-						playerObject.itemCooldown = 8;
 					}
+					else {
+						if (playerObject.holdingItem && !applianceObject.holdingItem) {
+							// Put down object
+							transferItem(gs, playerObject, applianceObject, playerObject.heldItem);
+						}
+						else if (!playerObject.holdingItem && applianceObject.holdingItem) {
+							// Pick up object
+							transferItem(gs, applianceObject, playerObject, applianceObject.heldItem);
+						}
+					}
+				}
+			});
+			// Grab from plants and interact with specific items
+			gs.plantList.forEach(plantObject => {
+				if (playerObject.xTarget === plantObject.xPosition && playerObject.yTarget === plantObject.yPosition) {
+					// Can only take from plant, not put arbitrary items back down
+					if (!playerObject.holdingItem && plantObject.holdingItem) {
+						// Pick up object
+						transferItem(gs, plantObject, playerObject, plantObject.heldItem);
+					}
+				}
+			});
+		}
+		if (doFire) {
+			// Fire button: Use held item (or make progress on something? probably remove that part)
+			if (playerObject.holdingItem && playerObject.heldItem.hasAbility) {
+				// Use ability of item
+				// Defeated players cannot fire projectiles
+				// Player must not have cooldown remaining
+				if (!playerObject.defeated && playerObject.itemCooldown <= 0) {
+					let abilityType = playerObject.heldItem.subType;
+					let projectileType;
+					if (abilityType === "gun") {
+						projectileType = "bullet";
+					}
+					else if (abilityType === "sword") {
+						projectileType = "swordSwing";
+					}
+					else if (abilityType === "ball") {
+						projectileType = "thrownBall";
+					}
+					else if (abilityType === "fireBomb") {
+						projectileType = "fireBombToss";
+					}
+					let projectileObject = createProjectile(gs, projectileType, playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.1);
+					projectileObject.sourcePlayer = playerObject;
+					playerObject.itemCooldown = 8;
 				}
 			}
 			else {
@@ -1865,10 +1890,6 @@ let gameLogic = (gs) => {
 					}
 				});
 			}
-			playerObject.fireReleased = false;
-		}
-		else {
-			playerObject.fireReleased = true;
 		}
 	});
 	gs.enemyList.forEach(enemyObject => {
@@ -1972,12 +1993,12 @@ let gameLogic = (gs) => {
 		}
 	});
 	// Spawn more enemies over time
-	if (gs.enemyList.length < 30 && gs.frameCount % 1400 === 0) {
+	/*if (gs.enemyList.length < 30 && gs.frameCount % 1400 === 0) {
 		let randAngle = (deterministicRandom(gs) * 2 - 1) * Math.PI;
 		let xSpot = Math.cos(randAngle) * 20;
 		let ySpot = Math.sin(randAngle) * 20;
 		let newEnemy = createEnemy(gs, "enemy1", xSpot, ySpot);
-	}
+	}*/
 	gs.plantList.forEach(plantObject => {
 		// Plants 
 		// Grow over time
@@ -2128,14 +2149,17 @@ let keyDownFunction = (event) => {
 	else if (event.keyCode === 68 && !dDown) {
 		dDown = true;
 	}
-	else if (event.keyCode === 79 && !oDown) {
-		oDown = true;
+	else if (event.keyCode === 69 && !eDown) {
+		eDown = true;
 	}
-	else if (event.keyCode === 80 && !pDown) {
-		pDown = true;
+	else if (event.keyCode === 82 && !rDown) {
+		rDown = true;
 	}
-	else if (event.keyCode === 32 && !spaceDown) {
-		spaceDown = true;
+	else if (event.keyCode === 70 && !fDown) {
+		fDown = true;
+	}
+	else if (event.keyCode === 16 && !shiftDown) {
+		shiftDown = true;
 	}
 	else {
 		return;
@@ -2155,14 +2179,17 @@ let keyUpFunction = (event) => {
 	else if (event.keyCode === 68) {
 		dDown = false;
 	}
-	else if (event.keyCode === 79) {
-		oDown = false;
+	else if (event.keyCode === 69) {
+		eDown = false;
 	}
-	else if (event.keyCode === 80) {
-		pDown = false;
+	else if (event.keyCode === 82) {
+		rDown = false;
 	}
-	else if (event.keyCode === 32) {
-		spaceDown = false;
+	else if (event.keyCode === 70) {
+		fDown = false;
+	}
+	else if (event.keyCode === 16) {
+		shiftDown = false;
 	}
 	else {
 		return;
@@ -2205,8 +2232,15 @@ let mouseMoveFunction = (event) => {
 	if (event.clientX !== xMouseScreen || event.clientY !== yMouseScreen) {
 		inputChanged = true;
 	}
-	xMouseScreen = 0;
-	yMouseScreen = 0;
+	xMouseScreen = event.x || event.clientX;
+	yMouseScreen = event.y || event.clientY;
+}
+
+let contextMenuFunction = (event) => {
+	if (gameStarted) {
+		event.preventDefault();
+		return false;
+	}
 }
 
 let resizeFunction = (event) => {
