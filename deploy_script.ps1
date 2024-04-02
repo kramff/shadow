@@ -13,9 +13,11 @@ $DeployGame = Read-Host -Prompt "Deploy game? y/n"
 if ($DeployGame -eq "y") {
 	cd Game
 	npx vite build
-	cp models dist/models
+	mkdir dist\models
+	Copy-Item -Path "models" -Destination "dist\models" -Recurse
 	#At this point, need to copy dist over to website using sftp
-	echo "copy dist/ to website..."
+	echo "copy dist\ to website..."
+	cd ..
 }
 
 $DeployServer = Read-Host -Prompt "Deploy server? y/n"
