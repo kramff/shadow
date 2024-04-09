@@ -401,15 +401,19 @@ let createPlayerMesh = (playerObject) => {
 		matToUse = playerTeam2Material;
 	}
 	let playerMesh = new THREE.Mesh(cubeGeometry, matToUse);
+	playerMesh.castShadow = true;
+	playerMesh.receiveShadow = true;
 	scene.add(playerMesh);
 	// Point light
 	let playerPointLight = new THREE.PointLight(0xffffff, 0.1, 5);
+	playerPointLight.castShadow = true;
 	scene.add(playerPointLight);
 	playerPointLight.parent = playerMesh;
-	playerPointLight.position.set(1.4, 0, 0);
+	playerPointLight.position.set(1.4, 0, 1.3);
 	playerMesh.pointLight = playerPointLight;
 	// Spot light
 	let playerSpotLight = new THREE.SpotLight(0xffffff, 1, 10, 0.5, 0.5, 2);
+	playerSpotLight.castShadow = true;
 	scene.add(playerSpotLight);
 	playerSpotLight.parent = playerMesh;
 	playerSpotLight.position.set(0.5, 0, -0.3);
@@ -467,6 +471,8 @@ let createApplianceMesh = (applianceObject) => {
 		console.log("appliance type missing: " + applianceObject.subType);
 		newApplianceMesh = new THREE.Mesh(cubeGeometry, tableMaterial);
 	}
+	newApplianceMesh.castShadow = true;
+	newApplianceMesh.receiveShadow = true;
 	scene.add(newApplianceMesh);
 	applianceMeshList.push(newApplianceMesh);
 	return newApplianceMesh;
@@ -880,6 +886,8 @@ let init = () => {
 	renderer = new THREE.WebGLRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	document.body.appendChild(renderer.domElement);
+	renderer.shadowMap.enabled = true;
+	//renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 	// Geometries
 	cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
@@ -946,6 +954,7 @@ let init = () => {
 	floorMesh = new THREE.Mesh(planeGeometry, floorMaterial);
 	floorMesh.position.set(1, 0, -0.5);
 	floorMesh.scale.set(8, 8, 1);
+	floorMesh.receiveShadow = true;
 	scene.add(floorMesh);
 
 	// Lights
@@ -1370,6 +1379,14 @@ let removeUnneededMeshes = (meshList, gameObjectList) => {
 		// gameObject isn't in the game anymore (destroyed, or rollbacked to never exist)
 		// OR, gameObject has a different mesh attached (rollback shenanigans)
 		if (!gameObjectList.includes(mesh.connectedObject) || mesh.connectedObject.connectedMesh !== mesh) {
+			if (mesh.spotLight !== undefined) {
+				scene.remove(mesh.spotLight);
+				mesh.spotLight.dispose();
+			}
+			if (mesh.pointLight !== undefined) {
+				scene.remove(mesh.pointLight);
+				mesh.pointLight.dispose();
+			}
 			scene.remove(mesh);
 			meshList.splice(meshList.indexOf(mesh), 1);
 		}
