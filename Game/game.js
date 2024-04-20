@@ -96,6 +96,9 @@ let safeGeometry;
 let safeMaterial;
 let safeMaterialHighlight;
 
+let lampMaterial;
+let lampMaterialHighlight;
+
 let hitEffectGeometry;
 let hitEffectMaterial;
 
@@ -450,32 +453,51 @@ let createAppliance = (gs, applianceType, xPosition, yPosition) => {
 	return newAppliance;
 }
 let createApplianceMesh = (applianceObject) => {
-	let newApplianceMesh;
+	let applianceMesh;
 	if (applianceObject.subType === "table") {
-		newApplianceMesh = new THREE.Mesh(cubeGeometry, tableMaterial);
+		applianceMesh = new THREE.Mesh(cubeGeometry, tableMaterial);
 		applianceObject.regularMat = tableMaterial;
 		applianceObject.highlightMat = tableMaterialHighlight;
 	}
 	else if (applianceObject.subType === "supply") {
-		newApplianceMesh = new THREE.Mesh(cubeGeometry, supplyMaterial);
+		applianceMesh = new THREE.Mesh(cubeGeometry, supplyMaterial);
 		applianceObject.regularMat = supplyMaterial;
 		applianceObject.highlightMat = supplyMaterialHighlight;
 	}
+	else if (applianceObject.subType === "lamp") {
+		applianceMesh = new THREE.Mesh(sphereGeometry, lampMaterial);
+		applianceObject.regularMat = lampMaterial;
+		applianceObject.highlightMat = lampMaterialHighlight;
+		// TODO: Create light for the lamp
+		let appliancePointLight = new THREE.PointLight(0xffffff, 0.4, 8);
+		appliancePointLight.castShadow = true;
+		scene.add(appliancePointLight);
+		appliancePointLight.parent = applianceMesh;
+		appliancePointLight.position.set(0, 0, 0);
+		applianceMesh.pointLight = appliancePointLight;
+	}
 	else if (applianceObject.subType === "safe") {
-		newApplianceMesh = new THREE.Mesh(safeGeometry, safeMaterial);
-		//newApplianceMesh.scale.multiplyScalar(0.5);
+		applianceMesh = new THREE.Mesh(safeGeometry, safeMaterial);
+		//applianceMesh.scale.multiplyScalar(0.5);
 		applianceObject.regularMat = safeMaterial;
 		applianceObject.highlightMat = safeMaterialHighlight;
 	}
 	else {
 		console.log("appliance type missing: " + applianceObject.subType);
-		newApplianceMesh = new THREE.Mesh(cubeGeometry, tableMaterial);
+		applianceMesh = new THREE.Mesh(cubeGeometry, tableMaterial);
 	}
-	newApplianceMesh.castShadow = true;
-	newApplianceMesh.receiveShadow = true;
-	scene.add(newApplianceMesh);
-	applianceMeshList.push(newApplianceMesh);
-	return newApplianceMesh;
+	// Lamps don't cast or receive shadows
+	if (applianceObject.subType === "lamp") {
+		applianceMesh.castShadow = false;
+		applianceMesh.receiveShadow = false;
+	}
+	else {
+		applianceMesh.castShadow = true;
+		applianceMesh.receiveShadow = true;
+	}
+	scene.add(applianceMesh);
+	applianceMeshList.push(applianceMesh);
+	return applianceMesh;
 }
 let removeAppliance = (gs, applianceObject) => {
 	gs.applianceList.splice(gs.applianceList.indexOf(applianceObject), 1);
@@ -933,6 +955,8 @@ let init = () => {
 	herbMaterial = new THREE.MeshToonMaterial({color: 0x10c040});
 	powderMaterial = new THREE.MeshToonMaterial({color: 0x60a080});
 	//rockMaterial = new THREE.MeshToonMaterial({color: 0x994433});
+	lampMaterial = new THREE.MeshToonMaterial({color: 0xeeeeaa});
+	lampMaterialHighlight = new THREE.MeshToonMaterial({color: 0xeeeecc});
 	safeMaterial = new THREE.MeshToonMaterial({color: 0x444444});
 	safeMaterialHighlight = new THREE.MeshToonMaterial({color: 0x555555});
 	enemy1Material = new THREE.MeshToonMaterial({color: 0x707070});
@@ -1027,6 +1051,7 @@ let initializeGameState = (gs) => {
 			}
 			else if (letter === "*") {
 				// Lamp
+				let newTable = createAppliance(gs, "lamp", x, y);
 			}
 		});
 	});
@@ -1444,6 +1469,9 @@ let renderFrame = (gs) => {
 		let applianceMesh = applianceObject.connectedMesh;
 		applianceMesh.position.x = applianceObject.xPosition;
 		applianceMesh.position.y = applianceObject.yPosition;
+		if (applianceObject.subType === "lamp") {
+			applianceMesh.position.z = 1.5;
+		}
 	});
 	gs.playerList.forEach(playerObject => {
 		let playerMesh = playerObject.connectedMesh;
@@ -1775,7 +1803,8 @@ let gameLogic = (gs) => {
 		// Check for appliances in the way
 		let xPotential = playerObject.xPosition + playerObject.xSpeed;
 		let yPotential = playerObject.yPosition + playerObject.ySpeed;
-		gs.applianceList.forEach(appliance => {
+		// Skip lamps
+		gs.applianceList.filter(appliance => appliance.subType !== "lamp").forEach(appliance => {
 			if (Math.abs(appliance.xPosition - xPotential) <= 1 &&
 				Math.abs(appliance.yPosition - yPotential) <= 1) {
 				let xAppDif = Math.abs(playerObject.xPosition - appliance.xPosition);
