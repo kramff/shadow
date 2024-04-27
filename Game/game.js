@@ -373,6 +373,9 @@ let createPlayer = (gs, name, id, team) => {
 		// Mouse controls
 		xMousePosition: 0,
 		yMousePosition: 0,
+        xMousePrevPosition: 0,
+        yMousePrevPosition: 0,
+        movedMouseWhileStill: false,
 		// Released actions
 		interactReleased: false,
 		reloatReleased: false,
@@ -403,6 +406,8 @@ let createPlayerMesh = (playerObject) => {
 	else if (playerObject.team === 2) {
 		matToUse = playerTeam2Material;
 	}
+    matToUse.transparent = true;
+    matToUse.opacity = 0.7;
 	let playerMesh = new THREE.Mesh(cubeGeometry, matToUse);
 	playerMesh.castShadow = true;
 	playerMesh.receiveShadow = true;
@@ -449,6 +454,9 @@ let createAppliance = (gs, applianceType, xPosition, yPosition) => {
 		connectedOverlayObjects: {},
 		toBeRemoved: false,
 	};
+    if (applianceType === "lamp") {
+        newAppliance.lightOn = true;
+    }
 	gs.applianceList.push(newAppliance);
 	return newAppliance;
 }
@@ -644,7 +652,7 @@ let createEffect = (gs, effectType, xPosition, yPosition) => {
 		connectedOverlayObjects: {},
 		xPosition: xPosition || 0,
 		yPosition: yPosition || 0,
-		lifespan: 200,
+		lifespan: 50,
 		toBeRemoved: false,
 	};
 	gs.effectList.push(newEffect);
@@ -1276,6 +1284,7 @@ let resimulateGame = () => {
 	if (anyChangedInputs) {
 		// Caught up to current frame, replace game state
 		currentGameState = currentResimulatedState;
+        window["cgsref"] = currentGameState;
 		// Update latest full input frame
 		latestPlayerInputs.sort(compareInputFrameCount);
 		latestFullInputFrame = latestPlayerInputs[0]?.frameCount || latestFullInputFrame;
@@ -1389,6 +1398,7 @@ let removeUnneededMeshes = (meshList, gameObjectList) => {
 		// gameObject isn't in the game anymore (destroyed, or rollbacked to never exist)
 		// OR, gameObject has a different mesh attached (rollback shenanigans)
 		if (!gameObjectList.includes(mesh.connectedObject) || mesh.connectedObject.connectedMesh !== mesh) {
+            // Remove any attached lights
 			if (mesh.spotLight !== undefined) {
 				scene.remove(mesh.spotLight);
 				mesh.spotLight.dispose();
@@ -1471,22 +1481,44 @@ let renderFrame = (gs) => {
 		applianceMesh.position.y = applianceObject.yPosition;
 		if (applianceObject.subType === "lamp") {
 			applianceMesh.position.z = 1.5;
+            if (applianceObject.lightOn) {
+                applianceMesh.pointLight.intensity = 0.4;
+            }
+            else {
+                applianceMesh.pointLight.intensity = 0;
+            }
 		}
 	});
+	let localPlayer = getLocalPlayer(gs);
+	let localPlayerMesh = localPlayer.connectedMesh;
 	gs.playerList.forEach(playerObject => {
 		let playerMesh = playerObject.connectedMesh;
 		playerMesh.position.x = playerObject.xPosition;
 		playerMesh.position.y = playerObject.yPosition;
 		playerMesh.rotation.z = playerObject.rotation;
-		gs.applianceList.forEach(applianceObject => {
-			if (playerObject.xTarget === applianceObject.xPosition &&
-				playerObject.yTarget === applianceObject.yPosition) {
-				applianceObject.connectedMesh.material = applianceObject.highlightMat;
-			}
-			else {
-				applianceObject.connectedMesh.material = applianceObject.regularMat;
-			}
-		});
+        if (playerObject.defeated) {
+            //playerMesh.material.transparent = true;
+            playerMesh.material.opacity = 0.2;
+            playerMesh.castShadow = false;
+            playerMesh.receiveShadow = false;
+        }
+        else {
+            //playerMesh.material.transparent = false;
+            playerMesh.material.opacity = 1;
+            playerMesh.castShadow = true;
+            playerMesh.receiveShadow = true;
+        }
+        if (playerObject === localPlayer) {
+            gs.applianceList.forEach(applianceObject => {
+                if (playerObject.xTarget === applianceObject.xPosition &&
+                    playerObject.yTarget === applianceObject.yPosition) {
+                    applianceObject.connectedMesh.material = applianceObject.highlightMat;
+                }
+                else {
+                    applianceObject.connectedMesh.material = applianceObject.regularMat;
+                }
+            });
+        }
 		if (playerObject.flashlightOn) {
 			playerMesh.spotLight.intensity = 1;
 		}
@@ -1536,8 +1568,8 @@ let renderFrame = (gs) => {
 	});
 	gs.effectList.forEach(effectObject => {
 		let effectMesh = effectObject.connectedMesh;
-		effectMesh.scale.x = effectObject.lifespan / 500;
-		effectMesh.scale.y = effectObject.lifespan / 500;
+		effectMesh.scale.x = (50 - effectObject.lifespan) / 70;
+		effectMesh.scale.y = (50 - effectObject.lifespan) / 70;
 		effectMesh.position.x = effectObject.xPosition;
 		effectMesh.position.y = effectObject.yPosition;
 	});
@@ -1574,8 +1606,6 @@ let renderFrame = (gs) => {
 		plantMesh.position.x = plantObject.xPosition;
 		plantMesh.position.y = plantObject.yPosition;
 	});
-	let localPlayer = getLocalPlayer(gs);
-	let localPlayerMesh = localPlayer.connectedMesh;
 	// Third person overhead camera
 	camera.position.set(localPlayerMesh.position.x, localPlayerMesh.position.y, localPlayerMesh.position.z + 10);
 	localPlayerMesh.visible = true;
@@ -1708,6 +1738,10 @@ let gameLogic = (gs) => {
 		if (playerObject.rightPressed) {
 			xSpeedChange += 0.02;
 		}
+        if (playerObject.runPressed && !playerObject.readyPressed) {
+            xSpeedChange *= 1.7;
+            ySpeedChange *= 1.7;
+        }
 		// Defeated players are very slow
 		//if (playerObject.defeated) {
 			//xSpeedChange *= 0.1;
@@ -1724,13 +1758,29 @@ let gameLogic = (gs) => {
 		if (playerObject.readyPressed) {
 			// Player is trying to ready a weapon - point toward mouse instead
 			targetRotation = -Math.atan2(playerObject.yMousePosition, playerObject.xMousePosition);
+            playerObject.movedMouseWhileStill = false;
 		}
-		else {
+		else if (anyDirectionPressed) {
 			// Player is just moving around without trying to ready a weapon
 			targetRotation = Math.atan2(ySpeedChange, xSpeedChange);
+            playerObject.movedMouseWhileStill = false;
 		}
+        else {
+            // Player is not moving or readying a weapon
+            // If mouse moved, point toward mouse. Otherwise keep current rotation
+            if (playerObject.xMousePosition !== playerObject.xMousePrevPosition ||
+                playerObject.yMousePosition !== playerObject.yMousePrevPosition) {
+                playerObject.movedMouseWhileStill = true;
+            }
+            if (playerObject.movedMouseWhileStill) {
+                targetRotation = -Math.atan2(playerObject.yMousePosition, playerObject.xMousePosition);
+            }
+            else {
+                targetRotation = playerObject.rotation;
+            }
+        }
 		let oppositeRotation = false;
-		if (anyDirectionPressed || playerObject.readyPressed) {
+		if (anyDirectionPressed || playerObject.readyPressed || playerObject.movedMouseWhileStill) {
 			if (playerObject.rotation !== targetRotation) {
 				let targetRotationDifference = Math.abs(playerObject.rotation - targetRotation);
 				// Apply spin to player's rotation toward targetRotation
@@ -1921,6 +1971,10 @@ let gameLogic = (gs) => {
 							transferItem(gs, undefined, playerObject, newItem);
 						}
 					}
+                    else if (applianceObject.subType === "lamp") {
+                        // Lamps: No items picked up or put down from, but can toggle light
+                        applianceObject.lightOn = !applianceObject.lightOn;
+                    }
 					else {
 						if (playerObject.holdingItem && !applianceObject.holdingItem) {
 							// Put down object
@@ -1978,9 +2032,9 @@ let gameLogic = (gs) => {
 							let targetItem = applianceObject.heldItem;
 							if (!targetItem.processed) {
 								let progressAmt = 1;
-								// defeated players are very slow at making progress
+								// defeated players cannot make progress
 								if (playerObject.defeated) {
-									progressAmt = 0.1;
+									progressAmt = 0;
 								}
 								targetItem.progress += progressAmt;
 							}
@@ -2001,6 +2055,9 @@ let gameLogic = (gs) => {
 		else {
 			playerObject.flashlightReleased = true;
 		}
+        // Update previous mouse position to the current position
+        playerObject.xMousePrevPosition = playerObject.xMousePosition;
+        playerObject.yMousePrevPosition = playerObject.yMousePosition;
 	});
 	gs.enemyList.forEach(enemyObject => {
 		// Enemy states: idle, chase, attack, stunned, angry
@@ -2131,15 +2188,24 @@ let gameLogic = (gs) => {
 		projectileObject.yPosition += Math.sin(projectileObject.rotation) * projectileObject.speed;
 		// Test collisions against players
 		gs.playerList.forEach(playerObject => {
+            if (playerObject.defeated) {
+                return;
+            }
 			if (projectileObject.sourcePlayer !== playerObject && collisionTest(playerObject, projectileObject)) {
 				// Subtract 1 health from player
 				playerObject.health -= 1;
 				// Check if player is defeated
 				if (playerObject.health <= 0) {
 					playerObject.defeated = true;
+                    // Make a bunch of hit effects to show that the player is defeated
+                    createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition);
+                    createEffect(gs, "hit", playerObject.xPosition - 0.5, playerObject.yPosition);
+                    createEffect(gs, "hit", playerObject.xPosition + 0.5, playerObject.yPosition);
+                    createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition - 0.5);
+                    createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition + 0.5);
 				}
 				// Create hit effect
-				let effectObject = createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
+				createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
 				// Remove projectile
 				projectileObject.toBeRemoved = true;
 				anyRemovals = true;
@@ -2425,6 +2491,7 @@ let setupNetworkConnection = () => {
 				gameStartPlayerInfo = messageData;
 				gameStarted = true;
 				currentGameState = createGameState();
+                window["cgsref"] = currentGameState;
 				let initInfo = initializeGameState(currentGameState);
 				playerFrameAdvantages = [];
 				gameStartPlayerInfo.forEach(playerData => {
