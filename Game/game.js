@@ -11,6 +11,10 @@ let rollbacksSpan;
 let resimulatedFramesSpan;
 let largestRemoteLagSpan;
 
+let gameStatusMessageSpan;
+let team1ScoreSpan;
+let team2ScoreSpan;
+
 let inputDelay = 3;
 
 // Main render stuff
@@ -122,6 +126,13 @@ let createGameState = () => {
 		enemyList: [],
 		plantList: [],
 		frameCount: 0,
+        gameActive: true,
+        roundWinner: undefined,
+        roundEndCountdown: 0,
+        team1Score: 0,
+        team2Score: 0,
+        gameFinished: false,
+        gameWinner: undefined,
 	}
 }
 
@@ -799,6 +810,8 @@ let otherPlayers = [];
 let gameOverlay;
 let overlayList = [];
 
+let gameUI;
+
 let glTFLoader;
 
 let modelLoadList = [
@@ -838,12 +851,17 @@ let init = () => {
 	resimulatedFramesSpan = document.getElementById("resimulated_frames");
 	largestRemoteLagSpan = document.getElementById("largest_remote_lag");
 
+    gameStatusMessageSpan = document.getElementById("game_status_message");
+    team1ScoreSpan = document.getElementById("team_1_score");
+    team2ScoreSpan = document.getElementById("team_2_score");
+
 	backgroundOverGame = document.getElementsByClassName("background_over_game").item(0);
 	roomListElement = document.getElementById("room_list");
 	teamBox1 = document.getElementById("team_1");
 	teamBox2 = document.getElementById("team_2");
 
 	gameOverlay = document.getElementById("game_overlay");
+	gameUI = document.getElementById("game_ui");
 
 	setupNetworkConnection();
 
@@ -1708,6 +1726,17 @@ let renderFrame = (gs) => {
 		resimulatedFramesSpan.textContent = numResimulatedFrames;
 		largestRemoteLagSpan.textContent = numLargestRemoteLag;
 	}
+    if (gs.gameFinished) {
+        gameStatusMessageSpan.textContent = `Game finished, Team ${gs.gameWinner} won!`;
+    }
+    else if (gs.gameActive) {
+        gameStatusMessageSpan.textContent = "Round in progress";
+    }
+    else {
+        gameStatusMessageSpan.textContent = `Round over, Team ${gs.roundWinner} wins. Next round in ${Math.round(gs.roundEndCountdown / 60)}.`;
+    }
+    team1ScoreSpan.textContent = gs.team1Score;
+    team2ScoreSpan.textContent = gs.team2Score;
 }
 
 let getLocalPlayer = (gs) => {
@@ -1721,7 +1750,22 @@ let collisionTest = (object1, object2) => {
 }
 
 let gameLogic = (gs) => {
+    if (gs.gameFinished) {
+        return;
+    }
+    if (!gs.gameActive) {
+        gs.roundEndCountdown -= 1;
+        if (gs.roundEndCountdown <= 0) {
+            gs.gameActive = true;
+        }
+        return;
+    }
 	let anyRemovals = false;
+    // Tracking defeated players for their team's victory/defeat
+    let team2AllDefeated = true;
+    let team2AnyPlayers = false;
+    let team1AllDefeated = true;
+    let team1AnyPlayers = false;
 	gs.playerList.forEach(playerObject => {
 		// Player Movement
 		let xSpeedChange = 0;
@@ -2058,6 +2102,19 @@ let gameLogic = (gs) => {
         // Update previous mouse position to the current position
         playerObject.xMousePrevPosition = playerObject.xMousePosition;
         playerObject.yMousePrevPosition = playerObject.yMousePosition;
+        // Track team defeated status
+        if (playerObject.team === 1) {
+            team1AnyPlayers = true;
+            if (!playerObject.defeated) {
+                team1AllDefeated = false;
+            }
+        }
+        if (playerObject.team === 2) {
+            team2AnyPlayers = true;
+            if (playerObject.defeated) {
+                team2AllDefeated = false;
+            }
+        }
 	});
 	gs.enemyList.forEach(enemyObject => {
 		// Enemy states: idle, chase, attack, stunned, angry
@@ -2263,6 +2320,43 @@ let gameLogic = (gs) => {
 		gs.effectList.filter(effectObject => effectObject.toBeRemoved).forEach(effectObject => {removeEffect(gs, effectObject);});
 		gs.enemyList.filter(enemyObject => enemyObject.toBeRemoved).forEach(enemyObject => {removeEnemy(gs, enemyObject);});
 	}
+    // Check for victory conditions
+    let team1Win = false;
+    let team2Win = false;
+    if (team1AnyPlayers && team1AllDefeated) {
+        team2Win = true;
+    }
+    if (team2AnyPlayers && team2AllDefeated) {
+        team1Win = true;
+    }
+    if (team1Win || team2Win) {
+        gs.gameActive = false;
+        if (team1Win && !team2Win) {
+            gs.roundWinner = 1;
+            gs.team1Score += 1;
+            if (gs.team1Score >= 2) {
+                gs.gameFinished = true;
+                gs.gameWinner = 1;
+            }
+            else {
+                roundEndCountdown = 240;
+            }
+        }
+        else if (team2Win && !team1Win) {
+            gs.roundWinner = 2;
+            gs.team2Score += 1;
+            if (gs.team2Score >= 2) {
+                gs.gameFinished = true;
+                gs.gameWinner = 2;
+            }
+            else {
+                roundEndCountdown = 240;
+            }
+        }
+        else {
+            gs.roundWinner = "It's a tie"
+        }
+    }
 }
 let transferItem = (gs, oldHolder, newHolder, item) => {
 	if (!!oldHolder) {

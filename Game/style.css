@@ -279,6 +279,16 @@ p {
 	height: 100%;
 	pointer-events: none;
 }
+.game_status {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+}
+.score_counter {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+}
 
 .debug_ui {
 	position: absolute;
