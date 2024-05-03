@@ -30,11 +30,16 @@ let zCamera = 10;
 let cubeGeometry;
 let playerMaterial;
 let playerTeam1Material;
+let playerTeam1DefeatedMaterial;
 let playerTeam2Material;
+let playerTeam2DefeatedMaterial;
 
 let planeGeometry;
 let floorMaterial;
 let floorMesh;
+
+let wallMaterial;
+let wallMaterialHighlight;
 
 let tableMaterial;
 let tableMaterialHighlight;
@@ -342,6 +347,7 @@ let latestFullInputFrame = 0;
 let localPlayerID;
 let lastInputSentFrame = 0;
 let playerFrameAdvantages = [];
+let initialGameStateCopy;
 
 let playerMeshList = [];
 let applianceMeshList = [];
@@ -417,9 +423,10 @@ let createPlayerMesh = (playerObject) => {
 	else if (playerObject.team === 2) {
 		matToUse = playerTeam2Material;
 	}
-    matToUse.transparent = true;
-    matToUse.opacity = 0.7;
 	let playerMesh = new THREE.Mesh(cubeGeometry, matToUse);
+	playerMesh.scale.x = 0.8;
+	playerMesh.scale.y = 0.8;
+	playerMesh.scale.z = 1.5;
 	playerMesh.castShadow = true;
 	playerMesh.receiveShadow = true;
 	scene.add(playerMesh);
@@ -435,12 +442,12 @@ let createPlayerMesh = (playerObject) => {
 	playerSpotLight.castShadow = true;
 	scene.add(playerSpotLight);
 	playerSpotLight.parent = playerMesh;
-	playerSpotLight.position.set(0.5, 0, -0.3);
+	playerSpotLight.position.set(0.5, 0, 0.3);
 	playerMesh.spotLight = playerSpotLight;
 	// Spot light's target
 	scene.add(playerSpotLight.target);
 	playerSpotLight.target.parent = playerMesh;
-	playerSpotLight.target.position.set(0.9, 0, -0.4);
+	playerSpotLight.target.position.set(0.9, 0, 0.25);
 	// Add player's mesh to mesh list
 	playerMeshList.push(playerMesh);
 	return playerMesh;
@@ -473,7 +480,13 @@ let createAppliance = (gs, applianceType, xPosition, yPosition) => {
 }
 let createApplianceMesh = (applianceObject) => {
 	let applianceMesh;
-	if (applianceObject.subType === "table") {
+	if (applianceObject.subType === "wall") {
+		applianceMesh = new THREE.Mesh(cubeGeometry, wallMaterial);
+		applianceObject.regularMat = wallMaterial;
+		applianceObject.highlightMat = wallMaterial;
+		applianceMesh.scale.z = 2;
+	}
+	else if (applianceObject.subType === "table") {
 		applianceMesh = new THREE.Mesh(cubeGeometry, tableMaterial);
 		applianceObject.regularMat = tableMaterial;
 		applianceObject.highlightMat = tableMaterialHighlight;
@@ -964,8 +977,17 @@ let init = () => {
 	// Materials
 	playerMaterial = new THREE.MeshToonMaterial({color: 0x22ff22});
 	playerTeam1Material = new THREE.MeshToonMaterial({color: 0xff7777});
+	playerTeam1DefeatedMaterial = new THREE.MeshToonMaterial({color: 0xff7777});
+	playerTeam1DefeatedMaterial.transparent = true;
+	playerTeam1DefeatedMaterial.opacity = 0.3;
 	playerTeam2Material = new THREE.MeshToonMaterial({color: 0x77ff77});
+	playerTeam2DefeatedMaterial = new THREE.MeshToonMaterial({color: 0x77ff77});
+	playerTeam2DefeatedMaterial.transparent = true;
+	playerTeam2DefeatedMaterial.opacity = 0.3;
 	floorMaterial = new THREE.MeshToonMaterial({color: 0x504030});
+	wallMaterial = new THREE.MeshToonMaterial({color: 0x909090});
+	//wallMaterial.shadowSide = THREE.DoubleSide;
+	wallMaterialHighlight = new THREE.MeshToonMaterial({color: 0x909090});
 	tableMaterial = new THREE.MeshToonMaterial({color: 0xccaa22});
 	tableMaterialHighlight = new THREE.MeshToonMaterial({color: 0xddbb33});
 	supplyMaterial = new THREE.MeshToonMaterial({color: 0xaa99cc});
@@ -1011,7 +1033,7 @@ let init = () => {
 	//sceneLight = new THREE.PointLight(0xffffff, 0.2, 14);
 	//sceneLight.position.set(4, 4, 4);
 	//scene.add(sceneLight);
-	sceneLight2 = new THREE.AmbientLight(0xffffff, 0.01);
+	sceneLight2 = new THREE.AmbientLight(0xffffff, 0.005);
 	scene.add(sceneLight2);
 
 	addEventListener("keydown", keyDownFunction);
@@ -1025,25 +1047,25 @@ let init = () => {
 window.addEventListener('load', init);
 
 let levelLayout = [
-	"#########...............",
-	"#1.G...*#...####........",
+	".#######................",
+	"#1.G....#....##.........",
 	"#........#..#..#........",
-	"#*...########..##.......",
+	"#*...TT######..#........",
 	"#...............#.......",
-	"#..........#########....",
-	"##.....*..#........#####",
+	"#..........TTT#####.....",
+	"#T........T........####.",
 	"#......................#",
-	"#.........####.....*...#",
-	"#..#.#.................#",
-	"#..........#######.....#",
-	"#......................#",
+	"#.........####.........#",
+	"#..T.T.................#",
+	"#..........#TT###T.....#",
+	"#...................T..#",
 	"#......####...#........#",
-	"###.####...............#",
-	"..###..####............#",
-	"...........#######....*#",
+	".##.####...........T...#",
+	"...#....###............#",
+	"...........####T#T....*#",
 	"............#..........#",
-	".............#.*...G..2#",
-	".............###########",
+	".............#.....G..2#",
+	"..............#########.",
 ];
 
 let initializeGameState = (gs) => {
@@ -1056,8 +1078,12 @@ let initializeGameState = (gs) => {
 				// Nothing
 			}
 			else if (letter === "#") {
+				// Wall
+				createAppliance(gs, "wall", x, y);
+			}
+			else if (letter === "T") {
 				// Table
-				let newTable = createAppliance(gs, "table", x, y);
+				createAppliance(gs, "table", x, y);
 			}
 			else if (letter === "G") {
 				// supply table with gun
@@ -1313,6 +1339,7 @@ let resimulateGame = () => {
 let lastTime;
 let timeAccumulator = 0;
 let frameTime = 1000/60;
+let shouldResetToInitialState = false;
 let gameLoop = () => {
 	if (gameStarted && currentGameState !== undefined && !gamePaused) {
 
@@ -1353,6 +1380,14 @@ let gameLoop = () => {
 				});
 				gameStateHistory.push(copyGameState(currentGameState));
 				gameLogic(currentGameState);
+				if (shouldResetToInitialState) {
+					let team1Score = currentGameState.team1Score;
+					let team2Score = currentGameState.team2Score;
+					currentGameState = copyGameState(initialGameStateCopy);
+					currentGameState.team1Score = team1Score;
+					currentGameState.team2Score = team2Score;
+					shouldResetToInitialState = false;
+				}
 				currentFrameCount += 1;
 				currentGameState.frameCount = currentFrameCount;
 			}
@@ -1506,6 +1541,9 @@ let renderFrame = (gs) => {
                 applianceMesh.pointLight.intensity = 0;
             }
 		}
+		else if (applianceObject.subType === "wall") {
+			applianceMesh.position.z = 0.5;
+		}
 	});
 	let localPlayer = getLocalPlayer(gs);
 	let localPlayerMesh = localPlayer.connectedMesh;
@@ -1513,16 +1551,25 @@ let renderFrame = (gs) => {
 		let playerMesh = playerObject.connectedMesh;
 		playerMesh.position.x = playerObject.xPosition;
 		playerMesh.position.y = playerObject.yPosition;
+		playerMesh.position.z = 0.25;
 		playerMesh.rotation.z = playerObject.rotation;
         if (playerObject.defeated) {
-            //playerMesh.material.transparent = true;
-            playerMesh.material.opacity = 0.2;
+			if (playerObject.team === 1) {
+				playerMesh.material = playerTeam1DefeatedMaterial;
+			}
+			else if (playerObject.team === 1) {
+				playerMesh.material = playerTeam2DefeatedMaterial;
+			}
             playerMesh.castShadow = false;
             playerMesh.receiveShadow = false;
         }
         else {
-            //playerMesh.material.transparent = false;
-            playerMesh.material.opacity = 1;
+			if (playerObject.team === 1) {
+				playerMesh.material = playerTeam1Material;
+			}
+			else if (playerObject.team === 1) {
+				playerMesh.material = playerTeam2Material;
+			}
             playerMesh.castShadow = true;
             playerMesh.receiveShadow = true;
         }
@@ -1750,6 +1797,19 @@ let collisionTest = (object1, object2) => {
 }
 
 let gameLogic = (gs) => {
+	// Effects can change even while game is otherwise paused for between-round pauses
+	let anyEffectRemovals = false;
+	gs.effectList.forEach(effectObject => {
+		effectObject.lifespan -= 1;
+		if (effectObject.lifespan <= 0) {
+			effectObject.toBeRemoved = true;
+			anyEffectRemovals = true;
+		}
+	});
+	if (anyEffectRemovals) {
+		gs.effectList.filter(effectObject => effectObject.toBeRemoved).forEach(effectObject => {removeEffect(gs, effectObject);});
+	}
+	// Freeze the game if done or between rounds
     if (gs.gameFinished) {
         return;
     }
@@ -1757,6 +1817,8 @@ let gameLogic = (gs) => {
         gs.roundEndCountdown -= 1;
         if (gs.roundEndCountdown <= 0) {
             gs.gameActive = true;
+			// Reset game to initial state
+			shouldResetToInitialState = true;
         }
         return;
     }
@@ -1897,10 +1959,11 @@ let gameLogic = (gs) => {
 		// Check for appliances in the way
 		let xPotential = playerObject.xPosition + playerObject.xSpeed;
 		let yPotential = playerObject.yPosition + playerObject.ySpeed;
+		let playerSize = 0.8;
 		// Skip lamps
 		gs.applianceList.filter(appliance => appliance.subType !== "lamp").forEach(appliance => {
-			if (Math.abs(appliance.xPosition - xPotential) <= 1 &&
-				Math.abs(appliance.yPosition - yPotential) <= 1) {
+			if (Math.abs(appliance.xPosition - xPotential) <= playerSize &&
+				Math.abs(appliance.yPosition - yPotential) <= playerSize) {
 				let xAppDif = Math.abs(playerObject.xPosition - appliance.xPosition);
 				let yAppDif = Math.abs(playerObject.yPosition - appliance.yPosition);
 				if (xAppDif > yAppDif) {
@@ -1913,7 +1976,7 @@ let gameLogic = (gs) => {
 								otherAppliance.yPosition === appliance.yPosition;
 						});
 						if (!rightSideCovered) {
-							playerObject.xSpeed = Math.max(playerObject.xSpeed, 1 + appliance.xPosition - playerObject.xPosition);
+							playerObject.xSpeed = Math.max(playerObject.xSpeed, playerSize + appliance.xPosition - playerObject.xPosition);
 						}
 					}
 					else {
@@ -1924,7 +1987,7 @@ let gameLogic = (gs) => {
 								otherAppliance.yPosition === appliance.yPosition;
 						});
 						if (!leftSideCovered) {
-							playerObject.xSpeed = Math.min(playerObject.xSpeed, -1 + appliance.xPosition - playerObject.xPosition);
+							playerObject.xSpeed = Math.min(playerObject.xSpeed, -playerSize + appliance.xPosition - playerObject.xPosition);
 						}
 					}
 				}
@@ -1938,7 +2001,7 @@ let gameLogic = (gs) => {
 								otherAppliance.yPosition === appliance.yPosition + 1;
 						});
 						if (!bottomSideCovered) {
-							playerObject.ySpeed = Math.max(playerObject.ySpeed, 1 + appliance.yPosition - playerObject.yPosition);
+							playerObject.ySpeed = Math.max(playerObject.ySpeed, playerSize + appliance.yPosition - playerObject.yPosition);
 						}
 					}
 					else {
@@ -1949,7 +2012,7 @@ let gameLogic = (gs) => {
 								otherAppliance.yPosition === appliance.yPosition - 1;
 						});
 						if (!topSideCovered) {
-							playerObject.ySpeed = Math.min(playerObject.ySpeed, -1 + appliance.yPosition - playerObject.yPosition);
+							playerObject.ySpeed = Math.min(playerObject.ySpeed, -playerSize + appliance.yPosition - playerObject.yPosition);
 						}
 					}
 				}
@@ -1984,7 +2047,7 @@ let gameLogic = (gs) => {
 		}
 		if (playerObject.firePressed) {
 			if (playerObject.fireReleased) {
-				if (playerObject.readyPressed) {
+				if (playerObject.readyPressed && playerObject.holdingItem) {
 					doFire = true;
 				}
 				else {
@@ -1997,7 +2060,7 @@ let gameLogic = (gs) => {
 			playerObject.fireReleased = true;
 		}
 		if (doInteraction) {
-			// Either: interact button pressed, or fire button pressed without ready button pressed
+			// Either: interact button pressed, or fire button pressed without ready button pressed, or fire button pressed without item in hand
 			// Grab input: try to grab or put down an item
 			// Grab from appliances
 			gs.applianceList.forEach((applianceObject) => {
@@ -2018,6 +2081,9 @@ let gameLogic = (gs) => {
                     else if (applianceObject.subType === "lamp") {
                         // Lamps: No items picked up or put down from, but can toggle light
                         applianceObject.lightOn = !applianceObject.lightOn;
+                    }
+                    else if (applianceObject.subType === "wall") {
+						// Walls: No interaction
                     }
 					else {
 						if (playerObject.holdingItem && !applianceObject.holdingItem) {
@@ -2111,7 +2177,7 @@ let gameLogic = (gs) => {
         }
         if (playerObject.team === 2) {
             team2AnyPlayers = true;
-            if (playerObject.defeated) {
+            if (!playerObject.defeated) {
                 team2AllDefeated = false;
             }
         }
@@ -2281,7 +2347,17 @@ let gameLogic = (gs) => {
 					enemyObject.defeated = true;
 				}
 				// Create hit effect
-				let effectObject = createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
+				createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
+				// Remove projectile
+				projectileObject.toBeRemoved = true;
+				anyRemovals = true;
+			}
+		});
+		// Test collisions against walls
+		gs.applianceList.filter(applianceObject => applianceObject.subType === "wall").forEach(applianceObject => {
+			if (collisionTest(applianceObject, projectileObject)) {
+				// Create hit effect
+				createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
 				// Remove projectile
 				projectileObject.toBeRemoved = true;
 				anyRemovals = true;
@@ -2291,13 +2367,6 @@ let gameLogic = (gs) => {
 		projectileObject.lifespan -= 1;
 		if (projectileObject.lifespan <= 0) {
 			projectileObject.toBeRemoved = true;
-			anyRemovals = true;
-		}
-	});
-	gs.effectList.forEach(effectObject => {
-		effectObject.lifespan -= 1;
-		if (effectObject.lifespan <= 0) {
-			effectObject.toBeRemoved = true;
 			anyRemovals = true;
 		}
 	});
@@ -2317,7 +2386,8 @@ let gameLogic = (gs) => {
 		gs.projectileList.filter(projectileObject => projectileObject.toBeRemoved).forEach(projectileObject => {removeProjectile(gs, projectileObject);});
 		gs.applianceList.filter(applianceObject => applianceObject.toBeRemoved).forEach(applianceObject => {removeAppliance(gs, applianceObject);});
 		gs.itemList.filter(itemObject => itemObject.toBeRemoved).forEach(itemObject => {removeItem(gs, itemObject);});
-		gs.effectList.filter(effectObject => effectObject.toBeRemoved).forEach(effectObject => {removeEffect(gs, effectObject);});
+		// effects are dealt with earlier
+		//gs.effectList.filter(effectObject => effectObject.toBeRemoved).forEach(effectObject => {removeEffect(gs, effectObject);});
 		gs.enemyList.filter(enemyObject => enemyObject.toBeRemoved).forEach(enemyObject => {removeEnemy(gs, enemyObject);});
 	}
     // Check for victory conditions
@@ -2334,27 +2404,27 @@ let gameLogic = (gs) => {
         if (team1Win && !team2Win) {
             gs.roundWinner = 1;
             gs.team1Score += 1;
-            if (gs.team1Score >= 2) {
+            if (gs.team1Score >= 3) {
                 gs.gameFinished = true;
                 gs.gameWinner = 1;
             }
             else {
-                roundEndCountdown = 240;
+                gs.roundEndCountdown = 240;
             }
         }
         else if (team2Win && !team1Win) {
             gs.roundWinner = 2;
             gs.team2Score += 1;
-            if (gs.team2Score >= 2) {
+            if (gs.team2Score >= 3) {
                 gs.gameFinished = true;
                 gs.gameWinner = 2;
             }
             else {
-                roundEndCountdown = 240;
+                gs.roundEndCountdown = 240;
             }
         }
         else {
-            gs.roundWinner = "It's a tie"
+            gs.roundWinner = "It's a tie";
         }
     }
 }
@@ -2603,6 +2673,8 @@ let setupNetworkConnection = () => {
 						playerFrameAdvantages.push({id: playerData.playerID, frameAdvantage: 0});
 					}
 				});
+				// copy the initial game state to reset to it later
+				initialGameStateCopy = copyGameState(currentGameState);
 				console.log("starting game loop");
 				lastTime = Date.now();
 				gameLoop();

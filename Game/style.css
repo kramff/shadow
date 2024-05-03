@@ -89,10 +89,14 @@ p {
 
 .box.entry_box {
 	flex-direction: row;
+	flex-wrap: wrap;
+	min-width: 300px;
 }
 
 .box.controls_box {
 	font-size: 12px;
+	min-width: 215px;
+	max-width: 355px;
 }
 .box.controls_box p {
 	width: 100%;
@@ -116,6 +120,8 @@ p {
 .team_boxes_row {
 	display: flex;
 	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: center;
 }
 .team_box_container {
 	display: flex;
