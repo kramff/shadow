@@ -363,6 +363,8 @@ let createPlayer = (gs, name, id, team) => {
 		// Position and movement
 		xPosition: 0,
 		yPosition: 0,
+		xStartPosition: 0,
+		yStartPosition: 0,
 		xSpeed: 0,
 		ySpeed: 0,
 		rotation: 0,
@@ -395,7 +397,7 @@ let createPlayer = (gs, name, id, team) => {
         movedMouseWhileStill: false,
 		// Released actions
 		interactReleased: false,
-		reloatReleased: false,
+		reloadReleased: false,
 		flashlightReleased: false,
 		runReleased: false,
 		fireReleased: false,
@@ -414,6 +416,53 @@ let createPlayer = (gs, name, id, team) => {
 	};
 	gs.playerList.push(newPlayer);
 	return newPlayer;
+}
+let resetPlayerObject = (playerObject) => {
+	playerObject.
+	playerObject.xPosition = playerObject.xStartPosition;
+	playerObject.yPosition = playerObject.yStartPosition;
+	playerObject.xSpeed = 0;
+	playerObject.ySpeed = 0;
+	playerObject.rotation = 0;
+	// Appliance targeting
+	playerObject.xTarget = 0;
+	playerObject.yTarget = 0;
+	// Status
+	playerObject.health = 10;
+	playerObject.maxHealth = 10;
+	// Item
+	playerObject.itemCooldown = 0;
+	playerObject.holdingItem = false;
+	playerObject.heldItem = undefined;
+	// Controls
+	playerObject.upPressed = false;
+	playerObject.rightPressed = false;
+	playerObject.downPressed = false;
+	playerObject.leftPressed = false;
+	playerObject.interactPressed = false;
+	playerObject.reloadPressed = false;
+	playerObject.flashlightPressed = false;
+	playerObject.runPressed = false;
+	playerObject.firePressed = false;
+	playerObject.readyPressed = false;
+	// Mouse controls
+	playerObject.xMousePosition = 0;
+	playerObject.yMousePosition = 0;
+	playerObject.xMousePrevPosition = 0;
+	playerObject.yMousePrevPosition = 0;
+	playerObject.movedMouseWhileStill = false;
+	// Released actions
+	playerObject.interactReleased = false;
+	playerObject.reloadReleased = false;
+	playerObject.flashlightReleased = false;
+	playerObject.runReleased = false;
+	playerObject.fireReleased = false;
+	playerObject.readyReleased = false;
+	// Flashlight
+	playerObject.flashlightOn = true;
+	// Graphics
+	playerObject.connectedOverlayObjects = {};
+	playerObject.defeated = false;
 }
 let createPlayerMesh = (playerObject) => {
 	let matToUse = playerMaterial;
@@ -1339,7 +1388,7 @@ let resimulateGame = () => {
 let lastTime;
 let timeAccumulator = 0;
 let frameTime = 1000/60;
-let shouldResetToInitialState = false;
+//let shouldResetToInitialState = false;
 let gameLoop = () => {
 	if (gameStarted && currentGameState !== undefined && !gamePaused) {
 
@@ -1380,14 +1429,14 @@ let gameLoop = () => {
 				});
 				gameStateHistory.push(copyGameState(currentGameState));
 				gameLogic(currentGameState);
-				if (shouldResetToInitialState) {
+				/*if (shouldResetToInitialState) {
 					let team1Score = currentGameState.team1Score;
 					let team2Score = currentGameState.team2Score;
-					currentGameState = copyGameState(initialGameStateCopy);
+					//currentGameState = copyGameState(initialGameStateCopy);
 					currentGameState.team1Score = team1Score;
 					currentGameState.team2Score = team2Score;
 					shouldResetToInitialState = false;
-				}
+				}*/
 				currentFrameCount += 1;
 				currentGameState.frameCount = currentFrameCount;
 			}
@@ -1818,7 +1867,15 @@ let gameLogic = (gs) => {
         if (gs.roundEndCountdown <= 0) {
             gs.gameActive = true;
 			// Reset game to initial state
-			shouldResetToInitialState = true;
+			//shouldResetToInitialState = true;
+			// TODO: Set players locations back to initial starting point
+			// TODO: Set players health and other stats back to initial values. flashlight off, etc
+			gs.playerList.forEach(playerObject => {
+				resetPlayerObject(playerObject);
+			});
+			// TODO: Remove all held items from players and appliances besides supply tables
+			// TODO: Remove all projectiles, effects
+			// TODO: Reset lamps 
         }
         return;
     }
@@ -2662,11 +2719,15 @@ let setupNetworkConnection = () => {
 					let newPlayerObject = createPlayer(currentGameState, playerData.playerName, playerData.playerID, playerData.playerTeam);
 					if (newPlayerObject.team === 1) {
 						newPlayerObject.xPosition = initInfo.t1x;
+						newPlayerObject.xStartPosition = initInfo.t1x;
 						newPlayerObject.yPosition = initInfo.t1y;
+						newPlayerObject.yStartPosition = initInfo.t1y;
 					}
 					else if (newPlayerObject.team === 2) {
 						newPlayerObject.xPosition = initInfo.t2x;
+						newPlayerObject.xStartPosition = initInfo.t2x;
 						newPlayerObject.yPosition = initInfo.t2y;
+						newPlayerObject.yStartPosition = initInfo.t2y;
 					}
 					// Don't add local player to playerFrameAdvantages
 					if (playerData.playerID !== localPlayerID) {

@@ -5,8 +5,8 @@
 	<title>Shadow game</title>
 	 
 	<!-- scripts moved to bottom of body -->
-  <script type="module" crossorigin src="./assets/index-59be130f.js"></script>
-  <link rel="stylesheet" href="./assets/index-00d97d47.css">
+  <script type="module" crossorigin src="./assets/index-8638dc2a.js"></script>
+  <link rel="stylesheet" href="./assets/index-9d3d39ad.css">
 </head>
 <body>
 	<div class="background_over_game active_bg"></div>
@@ -28,7 +28,7 @@
                 <br>
                 <p> </p>
                 <br>
-                <p><i>"Ok so you use WASD and move to a weapon, pick it up while looking at it by pressing E or left click, then fire it by holding right click and pressing left click."</i></p>
+                <p><i>"Ok so you use WASD and move to a weapon, pick it up while pointing at it by pressing E or left click, ready it by holding right click, and fire it by pressing left click."</i></p>
                 <p> - Mark Foster, game developer
 			</div>
 			<div class="box rooms_box">
@@ -69,7 +69,10 @@
 	</div>
 	<div class="page" view="game">
 		<div class="game_overlay" id="game_overlay"></div>
-		<div class="game_ui"></div>
+		<div class="game_ui" id="game_ui">
+            <div class="game_status"><span id="game_status_message">Game in progress</span></div>
+            <div class="score_counter">Team 1: <span id="team_1_score">0</span>, Team 2: <span id="team_2_score">0</span></div>
+        </div>
 		<div class="debug_ui">
 			<div class="debug current_frame">Current Frame: <span id="current_frame">0</span></div>
 			<div class="debug rollbacks">Rollbacks: <span id="rollbacks">0</span></div>
