@@ -865,6 +865,8 @@ let startGameButton;
 let pauseGameButton;
 let hitBreakpointButton;
 let desyncToolButton;
+let team1WinButton;
+let team2WinButton;
 
 let gameStartPlayerInfo;
 let otherPlayers = [];
@@ -987,6 +989,14 @@ let init = () => {
 	desyncToolButton = document.getElementById("run_desync_tool");
 	desyncToolButton.onclick = (e) => {
 		sendData("desyncTool", 0);
+	}
+
+	team1WinButton = document.getElementById("test_team_1_win");
+	team1WinButton.onclick = (e) => {
+	}
+
+	team2WinButton = document.getElementById("test_team_2_win");
+	team2WinButton.onclick = (e) => {
 	}
 
 	//nicknameInput.oninput
