@@ -418,7 +418,6 @@ let createPlayer = (gs, name, id, team) => {
 	return newPlayer;
 }
 let resetPlayerObject = (playerObject) => {
-	playerObject.
 	playerObject.xPosition = playerObject.xStartPosition;
 	playerObject.yPosition = playerObject.yStartPosition;
 	playerObject.xSpeed = 0;
@@ -460,8 +459,7 @@ let resetPlayerObject = (playerObject) => {
 	playerObject.readyReleased = false;
 	// Flashlight
 	playerObject.flashlightOn = true;
-	// Graphics
-	playerObject.connectedOverlayObjects = {};
+	// Defeated
 	playerObject.defeated = false;
 }
 let createPlayerMesh = (playerObject) => {
@@ -993,10 +991,12 @@ let init = () => {
 
 	team1WinButton = document.getElementById("test_team_1_win");
 	team1WinButton.onclick = (e) => {
+		sendData("test_team_win", {team:1, frameCount: currentGameState.frameCount + 30});
 	}
 
 	team2WinButton = document.getElementById("test_team_2_win");
 	team2WinButton.onclick = (e) => {
+		sendData("test_team_win", {team:2, frameCount: currentGameState.frameCount + 30});
 	}
 
 	//nicknameInput.oninput
@@ -1878,14 +1878,31 @@ let gameLogic = (gs) => {
             gs.gameActive = true;
 			// Reset game to initial state
 			//shouldResetToInitialState = true;
+			// TODO: Remove all held items from players and appliances besides supply tables
+			// TODO: Reset lamps 
+			gs.applianceList.forEach(applianceObject => {
+				if (applianceObject.holdingItem && applianceObject.subType !== "supply") {
+					transferItem(gs, applianceObject, undefined, applianceObject.heldItem);
+				}
+				if (applianceObject.subType === "lamp") {
+					applianceObject.lightOn = true;
+				}
+			});
 			// TODO: Set players locations back to initial starting point
 			// TODO: Set players health and other stats back to initial values. flashlight off, etc
 			gs.playerList.forEach(playerObject => {
+				if (playerObject.holdingItem) {
+					transferItem(gs, playerObject, undefined, playerObject.heldItem);
+				}
 				resetPlayerObject(playerObject);
 			});
-			// TODO: Remove all held items from players and appliances besides supply tables
 			// TODO: Remove all projectiles, effects
-			// TODO: Reset lamps 
+			gs.projectileList.forEach(projectileObject => {
+				projectileObject.toBeRemoved = true;
+			});
+			gs.effectList.forEach(projectileObject => {
+				projectileObject.toBeRemoved = true;
+			});
         }
         return;
     }
