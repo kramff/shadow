@@ -135,7 +135,18 @@ wss.on("connection", (ws) => {
 					console.log("Game state history passed through server");
 				}
 			});
-
+		}
+		// Test team winning (with button)
+		else if (messageType === "test_team_win") {
+			if (currentRoom === undefined) {
+				console.log("not in a room right now");
+				return;
+			}
+			messageData.id = player.id;
+			currentRoom.connectedPlayers.forEach(otherPlayer => {
+				sendData(otherPlayer.ws, "test_team_win", messageData);
+				console.log("Testing having a team win. (Team: " + messageData.team + ")");
+			});
 		}
 	});
 	ws.on("close", () => {

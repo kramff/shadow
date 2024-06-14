@@ -138,6 +138,8 @@ let createGameState = () => {
         team2Score: 0,
         gameFinished: false,
         gameWinner: undefined,
+		testWinTeam: undefined,
+		testWinFrame: undefined,
 	}
 }
 
@@ -547,7 +549,7 @@ let createApplianceMesh = (applianceObject) => {
 		applianceMesh = new THREE.Mesh(sphereGeometry, lampMaterial);
 		applianceObject.regularMat = lampMaterial;
 		applianceObject.highlightMat = lampMaterialHighlight;
-		// TODO: Create light for the lamp
+		// Create light for the lamp
 		let appliancePointLight = new THREE.PointLight(0xffffff, 0.4, 8);
 		appliancePointLight.castShadow = true;
 		scene.add(appliancePointLight);
@@ -1877,9 +1879,8 @@ let gameLogic = (gs) => {
         if (gs.roundEndCountdown <= 0) {
             gs.gameActive = true;
 			// Reset game to initial state
-			//shouldResetToInitialState = true;
-			// TODO: Remove all held items from players and appliances besides supply tables
-			// TODO: Reset lamps 
+			// Remove all held items from appliances besides supply tables
+			// Reset lamps (to "On")
 			gs.applianceList.forEach(applianceObject => {
 				if (applianceObject.holdingItem && applianceObject.subType !== "supply") {
 					transferItem(gs, applianceObject, undefined, applianceObject.heldItem);
@@ -1888,15 +1889,16 @@ let gameLogic = (gs) => {
 					applianceObject.lightOn = true;
 				}
 			});
-			// TODO: Set players locations back to initial starting point
-			// TODO: Set players health and other stats back to initial values. flashlight off, etc
+			// Remove all held items from players
+			// Set players locations back to initial starting point
+			// Set players health and other stats back to initial values. flashlight off, etc
 			gs.playerList.forEach(playerObject => {
 				if (playerObject.holdingItem) {
 					transferItem(gs, playerObject, undefined, playerObject.heldItem);
 				}
 				resetPlayerObject(playerObject);
 			});
-			// TODO: Remove all projectiles, effects
+			// Remove all projectiles, effects
 			gs.projectileList.forEach(projectileObject => {
 				projectileObject.toBeRemoved = true;
 			});
@@ -2483,6 +2485,22 @@ let gameLogic = (gs) => {
     if (team2AnyPlayers && team2AllDefeated) {
         team1Win = true;
     }
+	// Testing a team winning
+	if (gs.testWinFrame !== undefined) {
+		if (gs.frameCount === gs.testWinFrame) {
+			if (gs.testWinTeam === 1) {
+				team1Win = true;
+			}
+			else if (gs.testWinTeam === 2) {
+				team2Win = true;
+			}
+			else {
+				team1Win = true;
+				team2Win = true;
+			}
+		}
+	}
+	// Effects of a team winning
     if (team1Win || team2Win) {
         gs.gameActive = false;
         if (team1Win && !team2Win) {
@@ -2829,6 +2847,10 @@ let setupNetworkConnection = () => {
 				if (!foundDesync) {
 					console.log("No desync detected!");
 				}
+			}
+			else if (messageType === "test_team_win") {
+				currentGameState.testWinTeam = messageData.team;
+				currentGameState.testWinFrame = messageData.frameCount;
 			}
 		}
 	}
