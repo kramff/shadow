@@ -350,6 +350,7 @@ let localPlayerID;
 let lastInputSentFrame = 0;
 let playerFrameAdvantages = [];
 let initialGameStateCopy;
+let testingRollback = false;
 
 let playerMeshList = [];
 let applianceMeshList = [];
@@ -867,6 +868,7 @@ let hitBreakpointButton;
 let desyncToolButton;
 let team1WinButton;
 let team2WinButton;
+let testRollbackButton;
 
 let gameStartPlayerInfo;
 let otherPlayers = [];
@@ -999,6 +1001,17 @@ let init = () => {
 	team2WinButton = document.getElementById("test_team_2_win");
 	team2WinButton.onclick = (e) => {
 		sendData("test_team_win", {team:2, frameCount: currentGameState.frameCount + 30});
+	}
+
+	testRollbackButton = document.getElementById("test_rollback");
+	testRollbackButton.onclick = (e) => {
+		testingRollback = !testingRollback;
+		if (testingRollback) {
+			testRollbackButton.textContent = "Test rollback (on: inputs -10 frames)";
+		}
+		else {
+			testRollbackButton.textContent = "Test rollback (off: inputs +3 frames)";
+		}
 	}
 
 	//nicknameInput.oninput
@@ -1456,9 +1469,15 @@ let gameLoop = () => {
 				timeAccumulator = 0;
 			}
 			// Send inputs to server, and save to input log for local game simulation in a couple frames
+			// Case 1: input has changed
+			// Case 2: too long since last time input was sent to server (like a "heartbeat")
 			if (currentView === "game" && (inputChanged || (lastInputSentFrame + 120 < currentFrameCount))) {
-				// Case 1: input has changed
-				// Case 2: too long since last time input was sent to server
+				// inputDelay is normally 3
+				// use -10 when testing rollback 
+				let inputDelayToUse = inputDelay;
+				if (testingRollback) {
+					inputDelayToUse = -10;
+				}
 				let inputData = {
 					upPressed: wDown,
 					rightPressed: dDown,
@@ -1473,7 +1492,7 @@ let gameLoop = () => {
 					xMousePosition: xMouseScreen - Math.round(window.innerWidth / 2),
 					yMousePosition: yMouseScreen - Math.round(window.innerHeight / 2),
 					// Input delay - this input is applied slightly later than when it's pressed
-					frameCount: currentFrameCount + inputDelay,
+					frameCount: currentFrameCount + inputDelayToUse,
 				};
 				sendData("playerInput", inputData);
 				// Also put this into the local copy of the input log (the server will not send it to us)
