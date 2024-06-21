@@ -10,6 +10,8 @@ let currentFrameSpan;
 let rollbacksSpan;
 let resimulatedFramesSpan;
 let largestRemoteLagSpan;
+let missingMeshCreatedSpan;
+let unneededMeshRemovedSpan;
 
 let gameStatusMessageSpan;
 let team1ScoreSpan;
@@ -179,9 +181,19 @@ let copyGameObjectList = (gsNew, sourceObjectList, targetObjectList, createObjFu
 	sourceObjectList.forEach(gameObject => {
 		let copyObject = createObjFunc(gsNew);
 		Object.keys(gameObject).forEach(key => {
-			if (key !== "connectedMesh" && key !== "connectedOverlayObjects") {
-				copyObject[key] = gameObject[key];
+			copyObject[key] = gameObject[key];
+			// TODO: Remove this commented out code (probably)
+			/*if (key === "connectedMesh") {
+				// Mesh: keep reference
+				//copyObject[key] = gameObject[key];
 			}
+			else if (key === "connectedOverlayObjects") {
+				// Overlay object: keep reference
+				//copyObject[key] = gameObject[key];
+			}
+			else {
+				// Anything else: copy directly
+			}*/
 		});
 	});
 }
@@ -916,6 +928,8 @@ let init = () => {
 	rollbacksSpan = document.getElementById("rollbacks");
 	resimulatedFramesSpan = document.getElementById("resimulated_frames");
 	largestRemoteLagSpan = document.getElementById("largest_remote_lag");
+	missingMeshCreatedSpan = document.getElementById("missing_mesh_created");
+	unneededMeshRemovedSpan = document.getElementById("unneeded_mesh_removed");
 
     gameStatusMessageSpan = document.getElementById("game_status_message");
     team1ScoreSpan = document.getElementById("team_1_score");
@@ -1402,6 +1416,8 @@ let resimulateGame = () => {
 	if (anyChangedInputs) {
 		// Caught up to current frame, replace game state
 		currentGameState = currentResimulatedState;
+		// Reconnect meshes
+		reconnectMeshesInGameState (currentGameState);
         window["cgsref"] = currentGameState;
 		// Update latest full input frame
 		latestPlayerInputs.sort(compareInputFrameCount);
@@ -1517,20 +1533,44 @@ let gameLoop = () => {
 	requestAnimationFrame(gameLoop);
 }
 
+let reconnectMeshesInGameState = (gameState) => {
+	reconnectMeshesInObjectList(gameState.playerList);
+	reconnectMeshesInObjectList(gameState.applianceList);
+	reconnectMeshesInObjectList(gameState.itemList);
+	reconnectMeshesInObjectList(gameState.projectileList);
+	reconnectMeshesInObjectList(gameState.effectList);
+	reconnectMeshesInObjectList(gameState.enemyList);
+	reconnectMeshesInObjectList(gameState.plantList);
+}
+
+let reconnectMeshesInObjectList = (gameObjectList) => {
+	gameObjectList.forEach(gameObject => {
+		if (gameObject.connectedMesh !== undefined) {
+			gameObject.connectedMesh.connectedObject = gameObject;
+		}
+	});
+}
+
+let missingMeshCreatedCount = 0;
+
 let createMissingMeshes = (gameObjectList, createMeshFunc) => {
 	gameObjectList.forEach(gameObject => {
 		if (gameObject.connectedMesh === undefined) {
+			missingMeshCreatedCount += 1;
 			gameObject.connectedMesh = createMeshFunc(gameObject);
 			gameObject.connectedMesh.connectedObject = gameObject;
 		}
 	});
 };
 
+let unneededMeshRemovedCount = 0;
+
 let removeUnneededMeshes = (meshList, gameObjectList) => {
 	meshList.forEach(mesh => {
 		// gameObject isn't in the game anymore (destroyed, or rollbacked to never exist)
 		// OR, gameObject has a different mesh attached (rollback shenanigans)
 		if (!gameObjectList.includes(mesh.connectedObject) || mesh.connectedObject.connectedMesh !== mesh) {
+			unneededMeshRemovedCount += 1;
             // Remove any attached lights
 			if (mesh.spotLight !== undefined) {
 				scene.remove(mesh.spotLight);
@@ -1852,6 +1892,8 @@ let renderFrame = (gs) => {
 		rollbacksSpan.textContent = numRollbacks;
 		resimulatedFramesSpan.textContent = numResimulatedFrames;
 		largestRemoteLagSpan.textContent = numLargestRemoteLag;
+		missingMeshCreatedSpan.textContent = missingMeshCreatedCount;
+		unneededMeshRemovedSpan.textContent = unneededMeshRemovedCount;
 	}
     if (gs.gameFinished) {
         gameStatusMessageSpan.textContent = `Game finished, Team ${gs.gameWinner} won!`;
