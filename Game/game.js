@@ -113,6 +113,46 @@ let lampMaterialHighlight;
 let hitEffectGeometry;
 let hitEffectMaterial;
 
+// new ideas
+
+let hidingBoxGeometry;
+let hidingBoxMaterial;
+
+let climbSpotGeometry;
+let climbSpotMaterial;
+
+let smokeGrenadeGeometry;
+
+let flashGrenadeGeometry;
+
+let shotgunGeometry;
+
+let smgGeometry;
+
+let machinegunGeometry;
+let machinegunMaterial;
+
+let sniperRifleGeometry;
+
+let knifeGeometry;
+
+let daggerGeometry;
+
+let katanaGeometry;
+
+let rapierGeometry;
+let rapierMaterial;
+
+let whipGeometry;
+
+let gooGunGeometry;
+
+let rocketLauncherGeometry;
+
+let candleGeometry;
+
+let breakableWallGeometry;
+
 let enemy1Material;
 let enemy1AttackMaterial;
 let enemy1StunnedMaterial;
@@ -182,18 +222,6 @@ let copyGameObjectList = (gsNew, sourceObjectList, targetObjectList, createObjFu
 		let copyObject = createObjFunc(gsNew);
 		Object.keys(gameObject).forEach(key => {
 			copyObject[key] = gameObject[key];
-			// TODO: Remove this commented out code (probably)
-			/*if (key === "connectedMesh") {
-				// Mesh: keep reference
-				//copyObject[key] = gameObject[key];
-			}
-			else if (key === "connectedOverlayObjects") {
-				// Overlay object: keep reference
-				//copyObject[key] = gameObject[key];
-			}
-			else {
-				// Anything else: copy directly
-			}*/
 		});
 	});
 }
@@ -389,6 +417,27 @@ let createPlayer = (gs, name, id, team) => {
 		// Status
 		health: 10,
 		maxHealth: 10,
+		stagger: 0,
+		maxStagger: 10,
+		special: 0,
+		maxSpecial: 10,
+		// Action status
+		lightAttacking: false,
+		mediumAttacking: false,
+		specialAttacking: false,
+		parrying: false,
+		reloading: false,
+		rolling: false,
+		guarding: false,
+		grounded: false,
+		// Combat timing / stuns
+		attackStun: 0,
+		blockStun: 0
+		hitStun: 0,
+		staggerStun: 0,
+		knockdownStun: 0,
+		getupStun: 0,
+		rollStun: 0,
 		// Item
 		itemCooldown: 0,
 		holdingItem: false,
@@ -404,6 +453,7 @@ let createPlayer = (gs, name, id, team) => {
 		runPressed: false,
 		firePressed: false,
 		readyPressed: false,
+		specialPressed: false,
 		// Mouse controls
 		xMousePosition: 0,
 		yMousePosition: 0,
@@ -417,6 +467,7 @@ let createPlayer = (gs, name, id, team) => {
 		runReleased: false,
 		fireReleased: false,
 		readyReleased: false,
+		specialReleased: false,
 		// Flashlight
 		flashlightOn: true,
 		// Graphics
@@ -444,6 +495,27 @@ let resetPlayerObject = (playerObject) => {
 	// Status
 	playerObject.health = 10;
 	playerObject.maxHealth = 10;
+	playerObject.stagger = 0;
+	playerObject.maxStagger = 10;
+	playerObject.special = 0;
+	playerObject.maxSpecial = 10;
+	// Action status
+	playerObject.lightAttacking = false;
+	playerObject.mediumAttacking = false;
+	playerObject.specialAttacking = false;
+	playerObject.parrying = false;
+	playerObject.reloading = false;
+	playerObject.rolling = false;
+	playerObject.guarding = false;
+	playerObject.grounded = false;
+	// Combat timing / stuns
+	playerObject.attackStun = 0;
+	playerObject.blockStun = 0
+	playerObject.hitStun = 0;
+	playerObject.staggerStun = 0;
+	playerObject.knockdownStun = 0;
+	playerObject.getupStun = 0;
+	playerObject.rollStun = 0;
 	// Item
 	playerObject.itemCooldown = 0;
 	playerObject.holdingItem = false;
@@ -459,6 +531,7 @@ let resetPlayerObject = (playerObject) => {
 	playerObject.runPressed = false;
 	playerObject.firePressed = false;
 	playerObject.readyPressed = false;
+	playerObject.specialPressed = false;
 	// Mouse controls
 	playerObject.xMousePosition = 0;
 	playerObject.yMousePosition = 0;
@@ -615,13 +688,16 @@ let createItem = (gs, itemType) => {
 		hasAbility: false,
 		toBeRemoved: false,
 	};
-	if (itemType === "sword" || itemType === "gun" || itemType === "ball" || itemType === "fireBomb") {
+	if (itemType === "sword" || itemType === "gun" || itemType === "ball" || itemType === "fireBomb" || itemType === "rapier" || itemType === "machinegun") {
 		newItem.fixedRotation = false;
 		newItem.initialRotation = - Math.PI / 2;
 		newItem.hasAbility = true;
 	}
 	if (itemType === "seed" || itemType === "pollenSampler") {
 		newItem.extraInfo.genome = getBlankGenome();
+	}
+	if (itemType === "machinegun") {
+		newItem.extraInfo.ammo = 12;
 	}
 	gs.itemList.push(newItem);
 	return newItem;
@@ -674,10 +750,18 @@ let createItemMesh = (itemObject) => {
 	else if (itemObject.subType === "fireBomb") {
 		newItemMesh = new THREE.Mesh(fireBombGeometry, fireBombMaterial);
 	}
+	else if (itemObject.subType === "rapier") {
+		newItemMesh = new THREE.Mesh(rapierGeometry, rapierMaterial);
+	}
+	else if (itemObject.subType === "machinegun") {
+		newItemMesh = new THREE.Mesh(machinegunGeometry, machinegunMaterial);
+	}
 	else {
 		console.log("item type missing: " + itemObject.subType);
 		newItemMesh = new THREE.Mesh(sphereGeometry, itemMaterial);
 	}
+	newItemMesh.castShadow = true;
+	newItemMesh.receiveShadow = true;
 	scene.add(newItemMesh);
 	itemMeshList.push(newItemMesh);
 	return newItemMesh;
@@ -706,7 +790,25 @@ let createProjectile = (gs, projectileType, xPosition, yPosition, rotation, spee
 }
 let createProjectileMesh = (projectileObject) => {
 	let newProjectileMesh;
-	if (projectileObject.subType === "bullet") {
+	if (projectileObject.subType === "machinegun_light") {
+		newProjectileMesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
+	}
+	else if (projectileObject.subType === "machinegun_medium") {
+		newProjectileMesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
+	}
+	else if (projectileObject.subType === "machinegun_special") {
+		newProjectileMesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
+	}
+	else if (projectileObject.subType === "rapier_light") {
+		newProjectileMesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
+	}
+	else if (projectileObject.subType === "rapier_medium") {
+		newProjectileMesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
+	}
+	else if (projectileObject.subType === "rapier_special") {
+		newProjectileMesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
+	}
+	else if (projectileObject.subType === "bullet") {
 		newProjectileMesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
 	}
 	else if (projectileObject.subType === "thrownBall") {
@@ -856,6 +958,7 @@ let dDown = false;
 let eDown = false;
 let rDown = false;
 let fDown = false;
+let qDown = false;
 let shiftDown = false;
 
 // Mouse
@@ -893,12 +996,23 @@ let gameUI;
 let glTFLoader;
 
 let modelLoadList = [
-	{model: "rock2", name: "rock", setGeo: geo => rockGeometry = geo, setMat: mat => rockMaterial = mat},
-	{model: "safe1", name: "safe", setGeo: geo => {
+	{model: "rock2.gltf", name: "rock", setGeo: geo => rockGeometry = geo, setMat: mat => rockMaterial = mat},
+	{model: "safe1.gltf", name: "safe", setGeo: geo => {
 		safeGeometry = geo;
 		safeGeometry.scale(0.6, 0.6, 0.6);
 		safeGeometry.rotateX(Math.PI / 2);
 		safeGeometry.rotateZ(-Math.PI / 2);
+	}},
+	{model: "machinegun.glb", name: "machinegun", setGeo: geo => {
+		machinegunGeometry = geo;
+		machinegunGeometry.rotateX(Math.PI / 2);
+		machinegunGeometry.rotateZ(Math.PI / 2);
+		//machinegunGeometry.rotateY(-Math.PI / 2);
+	}},
+	{model: "rapier.glb", name: "rapier", setGeo: geo => {
+		rapierGeometry = geo;
+		rapierGeometry.rotateX(-Math.PI / 2);
+		rapierGeometry.rotateZ(-Math.PI / 3);
 	}},
 ];
 
@@ -907,7 +1021,7 @@ let init = () => {
 	glTFLoader = new GLTFLoader();
 
 	modelLoadList.forEach(loadItem => {
-		glTFLoader.load(`models/${loadItem.model}.gltf`,
+		glTFLoader.load(`models/${loadItem.model}`,
 			(gltf) => {
 				if (loadItem.setGeo !== undefined) {
 					loadItem.setGeo(gltf.scene.children[0].geometry);
@@ -1109,6 +1223,9 @@ let init = () => {
 	bloodMaterial = new THREE.MeshToonMaterial({color: 0xe03040});
 	ichorMaterial = new THREE.MeshToonMaterial({color: 0xf0f090});
 	fireBombMaterial = new THREE.MeshToonMaterial({color: 0xf84010});
+	// More materials 3
+	rapierMaterial = new THREE.MeshToonMaterial({color: 0xd0d8e0});
+	machinegunMaterial = new THREE.MeshToonMaterial({color: 0xe0d8c0});
 
 	// Single use meshes
 	floorMesh = new THREE.Mesh(planeGeometry, floorMaterial);
@@ -1136,8 +1253,8 @@ window.addEventListener('load', init);
 
 let levelLayout = [
 	".#######................",
-	"#1.G....#....##.........",
-	"#........#..#..#........",
+	"#1.G...M#....##.........",
+	"#.......R#..#..#........",
 	"#*...TT######..#........",
 	"#...............#.......",
 	"#..........TTT#####.....",
@@ -1151,8 +1268,8 @@ let levelLayout = [
 	".##.####...........T...#",
 	"...#....###............#",
 	"...........####T#T....*#",
-	"............#..........#",
-	".............#.....G..2#",
+	"............#R.........#",
+	".............#M....G..2#",
 	"..............#########.",
 ];
 
@@ -1172,6 +1289,18 @@ let initializeGameState = (gs) => {
 			else if (letter === "T") {
 				// Table
 				createAppliance(gs, "table", x, y);
+			}
+			else if (letter === "R") {
+				// supply table with rapier
+				let newSupply = createAppliance(gs, "supply", x, y);
+				let newItem = createItem(gs, "rapier");
+				transferItem(gs, undefined, newSupply, newItem);
+			}
+			else if (letter === "M") {
+				// supply table with machine gun
+				let newSupply = createAppliance(gs, "supply", x, y);
+				let newItem = createItem(gs, "machinegun");
+				transferItem(gs, undefined, newSupply, newItem);
 			}
 			else if (letter === "G") {
 				// supply table with gun
@@ -1341,6 +1470,7 @@ let applyInputToPlayer = (playerObject, playerInput) => {
 		playerObject.runPressed !== playerInput.runPressed ||
 		playerObject.firePressed !== playerInput.firePressed ||
 		playerObject.readyPressed !== playerInput.readyPressed ||
+		playerObject.specialPressed !== playerInput.specialPressed ||
 		playerObject.xMousePosition !== playerInput.xMousePosition ||
 		playerObject.yMousePosition !== playerInput.yMousePosition
 	) {
@@ -1354,6 +1484,7 @@ let applyInputToPlayer = (playerObject, playerInput) => {
 		playerObject.runPressed = playerInput.runPressed;
 		playerObject.firePressed = playerInput.firePressed;
 		playerObject.readyPressed = playerInput.readyPressed;
+		playerObject.specialPressed = playerInput.specialPressed;
 		playerObject.xMousePosition = playerInput.xMousePosition;
 		playerObject.yMousePosition = playerInput.yMousePosition;
 		return true;
@@ -1442,19 +1573,11 @@ let gameLoop = () => {
 		let frameTimeAdjust = 0;
 		// Determine if a slight delay or skip forward is needed
 		numLargestRemoteLag = Math.min(...playerFrameAdvantages.map(entry => entry.frameAdvantage));
-		/*
-		if (numLargestRemoteLag < -1) {
-			frameTimeAdjust = 4;
-			if (numLargestRemoteLag < -5) {
-				frameTimeAdjust = 8;
-			}
-			if (numLargestRemoteLag < -10) {
-				frameTimeAdjust = 16;
-			}
-		}
-		*/
 		frameTimeAdjust = -0.1 * numLargestRemoteLag;
 		frameTimeAdjust = Math.max(Math.min(frameTimeAdjust, 10), -10);
+		if (numLargestRemoteLag === Infinity) {
+			frameTimeAdjust = 0;
+		}
 
 		let newTime = Date.now();
 		let deltaTime = newTime - lastTime;
@@ -1509,6 +1632,7 @@ let gameLoop = () => {
 					runPressed: shiftDown,
 					firePressed: leftMouseDown,
 					readyPressed: rightMouseDown,
+					specialPressed: qDown,
 					xMousePosition: xMouseScreen - Math.round(window.innerWidth / 2),
 					yMousePosition: yMouseScreen - Math.round(window.innerHeight / 2),
 					// Input delay - this input is applied slightly later than when it's pressed
@@ -1733,7 +1857,11 @@ let renderFrame = (gs) => {
 				itemMesh.rotation.z = itemObject.holder.rotation * -1;
 			}
 			else {
-				itemMesh.rotation.z = itemObject.initialRotation;
+				let rotationModify = 0;
+				if (itemObject.subType === "rapier") {
+					rotationModify = -Math.PI * 2 / 3;
+				}
+				itemMesh.rotation.z = itemObject.initialRotation + rotationModify;
 			}
 		}
 		else if (itemObject.heldByAppliance) {
@@ -1980,6 +2108,14 @@ let gameLogic = (gs) => {
     let team1AllDefeated = true;
     let team1AnyPlayers = false;
 	gs.playerList.forEach(playerObject => {
+		// Determine if stunned in some way
+		let stunned = playerObject.attackStun > 0 ||
+			playerObject.blockStun > 0 ||
+			playerObject.hitStun > 0 ||
+			playerObject.staggerStun > 0 ||
+			playerObject.knockdownStun > 0 ||
+			playerObject.getupStun > 0 ||
+			playerObject.rollStun > 0;
 		// Player Movement
 		let xSpeedChange = 0;
 		let ySpeedChange = 0;
@@ -2112,7 +2248,8 @@ let gameLogic = (gs) => {
 		let yPotential = playerObject.yPosition + playerObject.ySpeed;
 		let playerSize = 0.8;
 		// Skip lamps
-		gs.applianceList.filter(appliance => appliance.subType !== "lamp").forEach(appliance => {
+		let collisionApplianceList = gs.applianceList.filter(appliance => appliance.subType !== "lamp");
+		collisionApplianceList.forEach(appliance => {
 			if (Math.abs(appliance.xPosition - xPotential) <= playerSize &&
 				Math.abs(appliance.yPosition - yPotential) <= playerSize) {
 				let xAppDif = Math.abs(playerObject.xPosition - appliance.xPosition);
@@ -2122,7 +2259,7 @@ let gameLogic = (gs) => {
 					if (playerObject.xPosition > appliance.xPosition) {
 						// Right side
 						// Make sure appliance's right side isn't covered by another appliance
-						let rightSideCovered = gs.applianceList.some(otherAppliance => {
+						let rightSideCovered = collisionApplianceList.some(otherAppliance => {
 							return otherAppliance.xPosition === appliance.xPosition + 1 &&
 								otherAppliance.yPosition === appliance.yPosition;
 						});
@@ -2133,7 +2270,7 @@ let gameLogic = (gs) => {
 					else {
 						// Left side
 						// Make sure appliance's right side isn't covered by another appliance
-						let leftSideCovered = gs.applianceList.some(otherAppliance => {
+						let leftSideCovered = collisionApplianceList.some(otherAppliance => {
 							return otherAppliance.xPosition === appliance.xPosition - 1 &&
 								otherAppliance.yPosition === appliance.yPosition;
 						});
@@ -2147,7 +2284,7 @@ let gameLogic = (gs) => {
 					if (playerObject.yPosition > appliance.yPosition) {
 						// Bottom side
 						// Make sure appliance's bottom side isn't covered by another appliance
-						let bottomSideCovered = gs.applianceList.some(otherAppliance => {
+						let bottomSideCovered = collisionApplianceList.some(otherAppliance => {
 							return otherAppliance.xPosition === appliance.xPosition &&
 								otherAppliance.yPosition === appliance.yPosition + 1;
 						});
@@ -2158,7 +2295,7 @@ let gameLogic = (gs) => {
 					else {
 						// Top side
 						// Make sure appliance's right side isn't covered by another appliance
-						let topSideCovered = gs.applianceList.some(otherAppliance => {
+						let topSideCovered = collisionApplianceList.some(otherAppliance => {
 							return otherAppliance.xPosition === appliance.xPosition &&
 								otherAppliance.yPosition === appliance.yPosition - 1;
 						});
@@ -2280,9 +2417,11 @@ let gameLogic = (gs) => {
 					else if (abilityType === "fireBomb") {
 						projectileType = "fireBombToss";
 					}
-					let projectileObject = createProjectile(gs, projectileType, playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.4);
-					projectileObject.sourcePlayer = playerObject;
-					playerObject.itemCooldown = 8;
+					if (projectileType !== undefined) {
+						let projectileObject = createProjectile(gs, projectileType, playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.4);
+						projectileObject.sourcePlayer = playerObject;
+						playerObject.itemCooldown = 8;
+					}
 				}
 			}
 			else {
@@ -2665,6 +2804,9 @@ let keyDownFunction = (event) => {
 	else if (event.keyCode === 70 && !fDown) {
 		fDown = true;
 	}
+	else if (event.keyCode === 81 && !fDown) {
+		qDown = true;
+	}
 	else if (event.keyCode === 16 && !shiftDown) {
 		shiftDown = true;
 	}
@@ -2694,6 +2836,9 @@ let keyUpFunction = (event) => {
 	}
 	else if (event.keyCode === 70) {
 		fDown = false;
+	}
+	else if (event.keyCode === 81) {
+		qDown = false;
 	}
 	else if (event.keyCode === 16) {
 		shiftDown = false;
