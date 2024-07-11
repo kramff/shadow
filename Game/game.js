@@ -432,12 +432,13 @@ let createPlayer = (gs, name, id, team) => {
 		grounded: false,
 		// Combat timing / stuns
 		attackStun: 0,
-		blockStun: 0
+		reloadStun: 0,
+		rollStun: 0,
+		guardStun: 0,
 		hitStun: 0,
 		staggerStun: 0,
 		knockdownStun: 0,
 		getupStun: 0,
-		rollStun: 0,
 		// Item
 		itemCooldown: 0,
 		holdingItem: false,
@@ -2119,35 +2120,38 @@ let gameLogic = (gs) => {
 		// Player Movement
 		let xSpeedChange = 0;
 		let ySpeedChange = 0;
-		if (playerObject.upPressed) {
-			ySpeedChange += 0.02;
+		// Must not be stunned to move
+		if (!stunned) {
+			if (playerObject.upPressed) {
+				ySpeedChange += 0.02;
+			}
+			if (playerObject.leftPressed) {
+				xSpeedChange -= 0.02;
+			}
+			if (playerObject.downPressed) {
+				ySpeedChange -= 0.02;
+			}
+			if (playerObject.rightPressed) {
+				xSpeedChange += 0.02;
+			}
+			// Diagonal movement
+			if (xSpeedChange !== 0 && ySpeedChange !== 0) {
+				xSpeedChange /= Math.SQRT2;
+				ySpeedChange /= Math.SQRT2;
+			}
 		}
-		if (playerObject.leftPressed) {
-			xSpeedChange -= 0.02;
-		}
-		if (playerObject.downPressed) {
-			ySpeedChange -= 0.02;
-		}
-		if (playerObject.rightPressed) {
-			xSpeedChange += 0.02;
-		}
-        if (playerObject.runPressed && !playerObject.readyPressed) {
+        /*if (playerObject.runPressed && !playerObject.readyPressed) {
             xSpeedChange *= 1.7;
             ySpeedChange *= 1.7;
-        }
+        }*/
 		// Defeated players are very slow
 		//if (playerObject.defeated) {
 			//xSpeedChange *= 0.1;
 			//ySpeedChange *= 0.1;
 		//}
-		// Diagonal movement
-		if (xSpeedChange !== 0 && ySpeedChange !== 0) {
-			xSpeedChange /= Math.SQRT2;
-			ySpeedChange /= Math.SQRT2;
-		}
 		let anyDirectionPressed = (xSpeedChange !== 0 || ySpeedChange !== 0);
 		let rotationChange = 0;
-		let targetRotation;
+		let targetRotation = playerObject.rotation;
 		if (playerObject.readyPressed) {
 			// Player is trying to ready a weapon - point toward mouse instead
 			targetRotation = -Math.atan2(playerObject.yMousePosition, playerObject.xMousePosition);
@@ -2192,10 +2196,10 @@ let gameLogic = (gs) => {
 		}
 		let previousRotation = playerObject.rotation;
 		if (rotationChange !== 0) {
-			// Defeated players turn slower
-			//if (playerObject.defeated) {
-				//rotationChange *= 0.5;
-			//}
+			// Stunned: can't rotate
+			if (stunned) {
+				rotationChange = 0;
+			}
 			// Apply rotation
 			playerObject.rotation += rotationChange;
 			// Don't overshoot the targetRotation
@@ -2323,29 +2327,76 @@ let gameLogic = (gs) => {
 		}
 		// World Interaction
 		let doInteraction = false;
-		let doFire = false;
-		if (playerObject.interactPressed) {
-			if (playerObject.interactReleased) {
-				doInteraction = true;
-			}
-			playerObject.interactReleased = false;
-		}
-		else {
-			playerObject.interactReleased = true;
-		}
-		if (playerObject.firePressed) {
-			if (playerObject.fireReleased) {
-				if (playerObject.readyPressed && playerObject.holdingItem) {
-					doFire = true;
-				}
-				else {
+		let doLightAttack = false;
+		let doMediumAttack = false;
+		let doSpecialAttack = false;
+		let doReload = false;
+		let doRoll = false;
+		// Must be not stunned in order to do anything
+		if (!stunned) {
+			// E - interact
+			if (playerObject.interactPressed) {
+				if (playerObject.interactReleased) {
 					doInteraction = true;
 				}
+				playerObject.interactReleased = false;
 			}
-			playerObject.fireReleased = false;
-		}
-		else {
-			playerObject.fireReleased = true;
+			else {
+				playerObject.interactReleased = true;
+			}
+			// Left click - Light, Medium attack, interact if no item
+			if (playerObject.firePressed) {
+				if (playerObject.fireReleased) {
+					if (playerObject.holdingItem) {
+						if (playerObject.readyPressed) {
+							// Holding right click: Medium attack
+							doMediumAttack = true;
+						}
+						else {
+							// Not holding right click: Light attack
+							doLightAttack = true;
+						}
+					}
+					else {
+						// No item: Just do interaction
+						doInteraction = true;
+					}
+				}
+				playerObject.fireReleased = false;
+			}
+			else {
+				playerObject.fireReleased = true;
+			}
+			// Q - Special
+			if (playerObject.specialPressed) {
+				if (playerObject.specialReleased) {
+					doSpecialAttack = true;
+				}
+				playerObject.specialReleased = false;
+			}
+			else {
+				playerObject.specialReleased = true;
+			}
+			// R - utility action, reload or parry
+			if (playerObject.reloadPressed) {
+				if (playerObject.reloadReleased) {
+					doReload = true;
+				}
+				playerObject.reloadReleased = false;
+			}
+			else {
+				playerObject.reloadReleased = true;
+			}
+			// Shift - Roll / dodge
+			if (playerObject.runPressed) {
+				if (playerObject.runReleased) {
+					doRoll = true;
+				}
+				playerObject.runReleased = false;
+			}
+			else {
+				playerObject.runReleased = true;
+			}
 		}
 		if (doInteraction) {
 			// Either: interact button pressed, or fire button pressed without ready button pressed, or fire button pressed without item in hand
@@ -2385,7 +2436,7 @@ let gameLogic = (gs) => {
 					}
 				}
 			});
-			// Grab from plants and interact with specific items
+			// Grab from plants
 			gs.plantList.forEach(plantObject => {
 				if (playerObject.xTarget === plantObject.xPosition && playerObject.yTarget === plantObject.yPosition) {
 					// Can only take from plant, not put arbitrary items back down
@@ -2396,7 +2447,14 @@ let gameLogic = (gs) => {
 				}
 			});
 		}
-		if (doFire) {
+		else if (doLightAttack) {
+			playerObject.lightAttacking = true;
+			playerObject.attackStun = 20;
+		}
+		else if (doMediumAttack) {
+			playerObject.mediumAttacking = true;
+			playerObject.attackStun = 15;
+			/*
 			// Fire button: Use held item (or make progress on something? probably remove that part)
 			if (playerObject.holdingItem && playerObject.heldItem.hasAbility) {
 				// Use ability of item
@@ -2445,7 +2503,21 @@ let gameLogic = (gs) => {
 					}
 				});
 			}
+			*/
 		}
+		else if (doSpecialAttack) {
+			playerObject.specialAttacking = true;
+			playerObject.attackStun = 15;
+		}
+		else if (doReload) {
+			playerObject.reloading = true;
+			playerObject.reloadStun = 15;
+		}
+		else if (doRoll) {
+			playerObject.rolling = true;
+			playerObject.rollStun = 15;
+		}
+		// Flashlight: Can be done independently of everything else
 		if (playerObject.flashlightPressed) {
 			if (playerObject.flashlightReleased) {
 				playerObject.flashlightOn = !playerObject.flashlightOn;
@@ -2454,6 +2526,78 @@ let gameLogic = (gs) => {
 		}
 		else {
 			playerObject.flashlightReleased = true;
+		}
+		// Decrement various stun timers
+		// Action stun timers
+		if (playerObject.lightAttacking || playerObject.mediumAttacking || playerObject.specialAttacking) {
+			playerObject.attackStun -= 1;
+			if (playerObject.attackStun <= 0) {
+				playerObject.lightAttacking = false;
+				playerObject.mediumAttacking = false;
+				playerObject.specialAttacking = false;
+				playerObject.attackStun = 0;
+			}
+		}
+		if (playerObject.parrying || playerObject.reloading) {
+			playerObject.reloadStun -= 1;
+			if (playerObject.reloadStun <= 0) {
+				playerObject.parrying = false;
+				playerObject.reloading = false;
+				playerObject.reloadStun = 0;
+			}
+		}
+		if (playerObject.rolling) {
+			playerObject.rollStun -= 1;
+			if (playerObject.rollStun <= 0) {
+				playerObject.rolling = false;
+				playerObject.rollStun = 0;
+			}
+		}
+		// Other stun timers, for if you get hit, guard an attack, get knocked down, staggered, or are getting back up
+		if (playerObject.guardStun > 0) {
+			playerObject.guardStun -= 1;
+			if (playerObject.guardStun <= 0) {
+				playerObject.guardStun = 0;
+			}
+		}
+		if (playerObject.hitStun > 0) {
+			playerObject.hitStun -= 1;
+			if (playerObject.hitStun <= 0) {
+				playerObject.hitStun = 0;
+			}
+		}
+		if (playerObject.staggerStun > 0) {
+			playerObject.staggerStun -= 1;
+			if (playerObject.staggerStun <= 0) {
+				playerObject.staggerStun = 0;
+			}
+		}
+		if (playerObject.knockdownStun > 0) {
+			playerObject.knockdownStun -= 1;
+			if (playerObject.knockdownStun <= 0) {
+				playerObject.knockdownStun = 0;
+			}
+		}
+		if (playerObject.getupStun > 0) {
+			playerObject.getupStun -= 1;
+			if (playerObject.getupStun <= 0) {
+				playerObject.getupStun = 0;
+			}
+		}
+		// Do actions on specific frames of actions
+		if (playerObject.lightAttacking) {
+			if (playerObject.attackStun === 16) {
+				let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation - 0.15, 0.8);
+				projectileObject.sourcePlayer = playerObject;
+			}
+			else if (playerObject.attackStun === 11) {
+				let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.8);
+				projectileObject.sourcePlayer = playerObject;
+			}
+			else if (playerObject.attackStun === 6) {
+				let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation + 0.15, 0.8);
+				projectileObject.sourcePlayer = playerObject;
+			}
 		}
         // Update previous mouse position to the current position
         playerObject.xMousePrevPosition = playerObject.xMousePosition;
