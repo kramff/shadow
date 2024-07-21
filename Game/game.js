@@ -113,8 +113,6 @@ let lampMaterialHighlight;
 let hitEffectGeometry;
 let hitEffectMaterial;
 
-// new ideas
-
 let hidingBoxGeometry;
 let hidingBoxMaterial;
 
@@ -783,9 +781,15 @@ let createProjectile = (gs, projectileType, xPosition, yPosition, rotation, spee
 		speed: speed || 0,
 		sourcePlayer: undefined,
 		sourceIsEnemy: false,
-		lifespan: 500,
+		lifespan: 400,
 		toBeRemoved: false,
 	};
+	if (projectileType === "fire_bomb_toss") {
+		newProjectile.lifespan = 80;
+	}
+	if (projectileType === "fire_bomb_explosion") {
+		newProjectile.lifespan = 150;
+	}
 	gs.projectileList.push(newProjectile);
 	return newProjectile;
 }
@@ -818,8 +822,11 @@ let createProjectileMesh = (projectileObject) => {
 	else if (projectileObject.subType === "swordSwing") {
 		newProjectileMesh = new THREE.Mesh(swordGeometry, swordMaterial);
 	}
-	else if (projectileObject.subType === "fireBombToss") {
+	else if (projectileObject.subType === "fire_bomb_toss") {
 		newProjectileMesh = new THREE.Mesh(fireBombGeometry, fireBombMaterial);
+	}
+	else if (projectileObject.subType === "fire_bomb_explosion") {
+		newProjectileMesh = new THREE.Mesh(hitEffectGeometry, fireBombMaterial);
 	}
 	else {
 		console.log("projectile type missing: " + projectileObject.subType);
@@ -841,7 +848,7 @@ let createEffect = (gs, effectType, xPosition, yPosition) => {
 		connectedOverlayObjects: {},
 		xPosition: xPosition || 0,
 		yPosition: yPosition || 0,
-		lifespan: 50,
+		lifespan: 30,
 		toBeRemoved: false,
 	};
 	gs.effectList.push(newEffect);
@@ -1206,6 +1213,7 @@ let init = () => {
 	herbMaterial = new THREE.MeshToonMaterial({color: 0x10c040});
 	powderMaterial = new THREE.MeshToonMaterial({color: 0x60a080});
 	//rockMaterial = new THREE.MeshToonMaterial({color: 0x994433});
+	hitEffectMaterial = new THREE.MeshToonMaterial({color: 0xffffff});
 	lampMaterial = new THREE.MeshToonMaterial({color: 0xeeeeaa});
 	lampMaterialHighlight = new THREE.MeshToonMaterial({color: 0xeeeecc});
 	safeMaterial = new THREE.MeshToonMaterial({color: 0x444444});
@@ -1253,25 +1261,25 @@ let init = () => {
 window.addEventListener('load', init);
 
 let levelLayout = [
-	".#######................",
-	"#1.G...M#....##.........",
-	"#.......R#..#..#........",
+	".####...................",
+	"#1..M#.......##.........",
+	"#...R##.....#..#........",
 	"#*...TT######..#........",
 	"#...............#.......",
 	"#..........TTT#####.....",
 	"#T........T........####.",
-	"#......................#",
+	"#................*.....#",
 	"#.........####.........#",
 	"#..T.T.................#",
 	"#..........#TT###T.....#",
-	"#...................T..#",
+	"#...*...............T..#",
 	"#......####...#........#",
-	".##.####...........T...#",
-	"...#....###............#",
-	"...........####T#T....*#",
-	"............#R.........#",
-	".............#M....G..2#",
-	"..............#########.",
+	".##..###...........T...#",
+	"..#..#..###............#",
+	"...##......######TT...*#",
+	".................##R...#",
+	"..................#M..2#",
+	"...................####.",
 ];
 
 let initializeGameState = (gs) => {
@@ -1280,48 +1288,50 @@ let initializeGameState = (gs) => {
 	levelLayout.forEach((line, x) => {
 		let split = line.split("");
 		split.forEach((letter, y) => {
+			let xx = y;
+			let yy = 16 - x;
 			if (letter === ".") {
 				// Nothing
 			}
 			else if (letter === "#") {
 				// Wall
-				createAppliance(gs, "wall", x, y);
+				createAppliance(gs, "wall", xx, yy);
 			}
 			else if (letter === "T") {
 				// Table
-				createAppliance(gs, "table", x, y);
+				createAppliance(gs, "table", xx, yy);
 			}
 			else if (letter === "R") {
 				// supply table with rapier
-				let newSupply = createAppliance(gs, "supply", x, y);
+				let newSupply = createAppliance(gs, "supply", xx, yy);
 				let newItem = createItem(gs, "rapier");
 				transferItem(gs, undefined, newSupply, newItem);
 			}
 			else if (letter === "M") {
 				// supply table with machine gun
-				let newSupply = createAppliance(gs, "supply", x, y);
+				let newSupply = createAppliance(gs, "supply", xx, yy);
 				let newItem = createItem(gs, "machinegun");
 				transferItem(gs, undefined, newSupply, newItem);
 			}
 			else if (letter === "G") {
 				// supply table with gun
-				let newSupply = createAppliance(gs, "supply", x, y);
+				let newSupply = createAppliance(gs, "supply", xx, yy);
 				let newItem = createItem(gs, "gun");
 				transferItem(gs, undefined, newSupply, newItem);
 			}
 			else if (letter === "1") {
 				// Team 1 start location
-				startLocations.t1x = x;
-				startLocations.t1y = y;
+				startLocations.t1x = xx;
+				startLocations.t1y = yy;
 			}
 			else if (letter === "2") {
 				// Team 1 start location
-				startLocations.t2x = x;
-				startLocations.t2y = y;
+				startLocations.t2x = xx;
+				startLocations.t2y = yy;
 			}
 			else if (letter === "*") {
 				// Lamp
-				let newTable = createAppliance(gs, "lamp", x, y);
+				let newTable = createAppliance(gs, "lamp", xx, yy);
 			}
 		});
 	});
@@ -1806,7 +1816,7 @@ let renderFrame = (gs) => {
 			if (playerObject.team === 1) {
 				playerMesh.material = playerTeam1DefeatedMaterial;
 			}
-			else if (playerObject.team === 1) {
+			else if (playerObject.team === 2) {
 				playerMesh.material = playerTeam2DefeatedMaterial;
 			}
             playerMesh.castShadow = false;
@@ -1816,7 +1826,7 @@ let renderFrame = (gs) => {
 			if (playerObject.team === 1) {
 				playerMesh.material = playerTeam1Material;
 			}
-			else if (playerObject.team === 1) {
+			else if (playerObject.team === 2) {
 				playerMesh.material = playerTeam2Material;
 			}
             playerMesh.castShadow = true;
@@ -1886,8 +1896,8 @@ let renderFrame = (gs) => {
 	});
 	gs.effectList.forEach(effectObject => {
 		let effectMesh = effectObject.connectedMesh;
-		effectMesh.scale.x = (50 - effectObject.lifespan) / 70;
-		effectMesh.scale.y = (50 - effectObject.lifespan) / 70;
+		effectMesh.scale.x = (40 - effectObject.lifespan) / 40;
+		effectMesh.scale.y = (40 - effectObject.lifespan) / 40;
 		effectMesh.position.x = effectObject.xPosition;
 		effectMesh.position.y = effectObject.yPosition;
 	});
@@ -2453,7 +2463,7 @@ let gameLogic = (gs) => {
 		}
 		else if (doMediumAttack) {
 			playerObject.mediumAttacking = true;
-			playerObject.attackStun = 15;
+			playerObject.attackStun = 40;
 			/*
 			// Fire button: Use held item (or make progress on something? probably remove that part)
 			if (playerObject.holdingItem && playerObject.heldItem.hasAbility) {
@@ -2473,7 +2483,7 @@ let gameLogic = (gs) => {
 						projectileType = "thrownBall";
 					}
 					else if (abilityType === "fireBomb") {
-						projectileType = "fireBombToss";
+						projectileType = "fire_bomb_toss";
 					}
 					if (projectileType !== undefined) {
 						let projectileObject = createProjectile(gs, projectileType, playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.4);
@@ -2516,6 +2526,26 @@ let gameLogic = (gs) => {
 		else if (doRoll) {
 			playerObject.rolling = true;
 			playerObject.rollStun = 15;
+			let xRoll = 0;
+			let yRoll = 0;
+			if (playerObject.leftPressed) {
+				xRoll -= 1;
+			}
+			if (playerObject.rightPressed) {
+				xRoll += 1;
+			}
+			if (playerObject.upPressed) {
+				yRoll += 1;
+			}
+			if (playerObject.downPressed) {
+				yRoll -= 1;
+			}
+			if (xRoll !== 0 && yRoll !== 0) {
+				xRoll *= 0.707;
+				yRoll *= 0.707;
+			}
+			playerObject.xSpeed += xRoll;
+			playerObject.ySpeed += yRoll;
 		}
 		// Flashlight: Can be done independently of everything else
 		if (playerObject.flashlightPressed) {
@@ -2586,17 +2616,52 @@ let gameLogic = (gs) => {
 		}
 		// Do actions on specific frames of actions
 		if (playerObject.lightAttacking) {
-			if (playerObject.attackStun === 16) {
-				let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation - 0.15, 0.8);
-				projectileObject.sourcePlayer = playerObject;
+			if (playerObject.heldItem.subType === "machinegun") {
+				if (playerObject.attackStun === 16) {
+					let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation - 0.15, 0.7);
+					projectileObject.sourcePlayer = playerObject;
+				}
+				else if (playerObject.attackStun === 11) {
+					let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.7);
+					projectileObject.sourcePlayer = playerObject;
+				}
+				else if (playerObject.attackStun === 6) {
+					let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation + 0.15, 0.7);
+					projectileObject.sourcePlayer = playerObject;
+				}
 			}
-			else if (playerObject.attackStun === 11) {
-				let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.8);
-				projectileObject.sourcePlayer = playerObject;
+		}
+		if (playerObject.mediumAttacking) {
+			if (playerObject.heldItem.subType === "machinegun") {
+				if (playerObject.attackStun === 35) {
+					let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation - 0.05, 0.75);
+					projectileObject.sourcePlayer = playerObject;
+				}
+				else if (playerObject.attackStun === 25) {
+					let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.8);
+					projectileObject.sourcePlayer = playerObject;
+				}
+				else if (playerObject.attackStun === 15) {
+					let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation + 0.05, 0.8);
+					projectileObject.sourcePlayer = playerObject;
+				}
+				else if (playerObject.attackStun === 10) {
+					let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.8);
+					projectileObject.sourcePlayer = playerObject;
+				}
+				else if (playerObject.attackStun === 5) {
+					let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation - 0.05, 0.85);
+					projectileObject.sourcePlayer = playerObject;
+				}
 			}
-			else if (playerObject.attackStun === 6) {
-				let projectileObject = createProjectile(gs, "bullet", playerObject.xPosition, playerObject.yPosition, playerObject.rotation + 0.15, 0.8);
-				projectileObject.sourcePlayer = playerObject;
+		}
+		if (playerObject.specialAttacking) {
+			if (playerObject.heldItem.subType === "machinegun") {
+				if (playerObject.attackStun === 5) {
+					let projectileObject = createProjectile(gs, "fire_bomb_toss", playerObject.xPosition, playerObject.yPosition, playerObject.rotation, 0.7);
+					projectileObject.sourcePlayer = playerObject;
+				}
+
 			}
 		}
         // Update previous mouse position to the current position
@@ -2740,6 +2805,10 @@ let gameLogic = (gs) => {
 		}
 	});
 	gs.projectileList.forEach(projectileObject => {
+		// Adjust speed (for certain types)
+		if (projectileObject.subType === "fire_bomb_toss") {
+			projectileObject.speed *= 0.9;
+		}
 		// Apply speed
 		projectileObject.xPosition += Math.cos(projectileObject.rotation) * projectileObject.speed;
 		projectileObject.yPosition += Math.sin(projectileObject.rotation) * projectileObject.speed;
@@ -2749,23 +2818,28 @@ let gameLogic = (gs) => {
                 return;
             }
 			if (projectileObject.sourcePlayer !== playerObject && collisionTest(playerObject, projectileObject)) {
-				// Subtract 1 health from player
-				playerObject.health -= 1;
+				if (projectileObject.subType === "fire_bomb_explosion") {
+					playerObject.health -= 0.05
+				}
+				else {
+					// Subtract 1 health from player
+					playerObject.health -= 1;
+					// Create hit effect
+					createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
+					// Remove projectile
+					projectileObject.toBeRemoved = true;
+					anyRemovals = true;
+				}
 				// Check if player is defeated
 				if (playerObject.health <= 0) {
 					playerObject.defeated = true;
-                    // Make a bunch of hit effects to show that the player is defeated
-                    createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition);
-                    createEffect(gs, "hit", playerObject.xPosition - 0.5, playerObject.yPosition);
-                    createEffect(gs, "hit", playerObject.xPosition + 0.5, playerObject.yPosition);
-                    createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition - 0.5);
-                    createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition + 0.5);
+					// Make a bunch of hit effects to show that the player is defeated
+					createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition);
+					createEffect(gs, "hit", playerObject.xPosition - 0.5, playerObject.yPosition);
+					createEffect(gs, "hit", playerObject.xPosition + 0.5, playerObject.yPosition);
+					createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition - 0.5);
+					createEffect(gs, "hit", playerObject.xPosition, playerObject.yPosition + 0.5);
 				}
-				// Create hit effect
-				createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
-				// Remove projectile
-				projectileObject.toBeRemoved = true;
-				anyRemovals = true;
 			}
 		});
 		// Test collisions against enemies
@@ -2802,6 +2876,12 @@ let gameLogic = (gs) => {
 		if (projectileObject.lifespan <= 0) {
 			projectileObject.toBeRemoved = true;
 			anyRemovals = true;
+		}
+		// Fire bomb: when destroyed, create a fire bomb explosion
+		if (projectileObject.subType === "fire_bomb_toss" && projectileObject.toBeRemoved) {
+			//createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
+			let newProjectileObject = createProjectile(gs, "fire_bomb_explosion", projectileObject.xPosition, projectileObject.yPosition, 0, 0);
+			newProjectileObject.sourcePlayer = projectileObject.sourcePlayer;
 		}
 	});
 	gs.enemyList.forEach(enemyObject => {
