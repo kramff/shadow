@@ -2819,7 +2819,7 @@ let gameLogic = (gs) => {
             }
 			if (projectileObject.sourcePlayer !== playerObject && collisionTest(playerObject, projectileObject)) {
 				if (projectileObject.subType === "fire_bomb_explosion") {
-					playerObject.health -= 0.05
+					playerObject.health -= 0.05;
 				}
 				else {
 					// Subtract 1 health from player
@@ -2846,23 +2846,31 @@ let gameLogic = (gs) => {
 		gs.enemyList.forEach(enemyObject => {
 			// Check that the projectile is from a player, and collides with the enemy, and the enemy isn't already defeated
 			if (!projectileObject.sourceIsEnemy && collisionTest(enemyObject, projectileObject) && !enemyObject.defeated) {
-				// Subtract health from enemy
-				enemyObject.health -= 1;
-				// Add stagger to enemy
-				enemyObject.stagger += 3;
-				// Check if defeated
-				if (enemyObject.health <= 0) {
-					enemyObject.defeated = true;
+				if (projectileObject.subType === "fire_bomb_explosion") {
+					enemyObject.health -= 0.05;
 				}
-				// Create hit effect
-				createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
-				// Remove projectile
-				projectileObject.toBeRemoved = true;
-				anyRemovals = true;
+				else {
+					// Subtract health from enemy
+					enemyObject.health -= 1;
+					// Add stagger to enemy
+					enemyObject.stagger += 3;
+					// Check if defeated
+					if (enemyObject.health <= 0) {
+						enemyObject.defeated = true;
+					}
+					// Create hit effect
+					createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
+					// Remove projectile
+					projectileObject.toBeRemoved = true;
+					anyRemovals = true;
+				}
 			}
 		});
 		// Test collisions against walls
 		gs.applianceList.filter(applianceObject => applianceObject.subType === "wall").forEach(applianceObject => {
+			if (projectileObject.subType === "fire_bomb_explosion") {
+				return;
+			}
 			if (collisionTest(applianceObject, projectileObject)) {
 				// Create hit effect
 				createEffect(gs, "hit", projectileObject.xPosition, projectileObject.yPosition);
